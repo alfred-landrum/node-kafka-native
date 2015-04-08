@@ -1,0 +1,22 @@
+{
+  "name": "jut-kafka-node",
+  "version": "0.0.0",
+  "description": "node.js Kafka client",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "install": "node-gyp rebuild"
+  },
+  "author": {
+    "name": "Alfred Landrum",
+    "email": "alfred@jut.io"
+  },
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {},
+  "files": [
+    "README.md",
+    "LICENSE",
+    "index.js"
+  ]
+}
