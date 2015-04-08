@@ -1,0 +1,9 @@
+build
+node_modules
+npm-debug.log
+deps/librdkafka/Makefile.config
+deps/librdkafka/config.cache
+deps/librdkafka/config.h
+deps/librdkafka/config.log
+deps/librdkafka/config.log.old
+deps/librdkafka/rdkafka.pc

@@ -1,6 +1,6 @@
 {
   "name": "jut-kafka-node",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "node.js Kafka client",
   "main": "index.js",
   "scripts": {
@@ -12,11 +12,8 @@
     "email": "alfred@jut.io"
   },
   "license": "MIT",
-  "dependencies": {},
-  "devDependencies": {},
-  "files": [
-    "README.md",
-    "LICENSE",
-    "index.js"
-  ]
+  "dependencies": {
+    "nan": "^1.7.0"
+  },
+  "gypfile": true
 }
