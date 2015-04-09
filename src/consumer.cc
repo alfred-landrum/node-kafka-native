@@ -295,7 +295,7 @@ Consumer::kafka_recv(const vector<rd_kafka_message_t*> &vec) {
             obj->Set(key.handle(), create_object((uint8_t*)msg->key, msg->key_len));
         }
         if (msg->len) {
-            obj->Set(key.handle(), create_object((uint8_t*)msg->payload, msg->len));
+            obj->Set(payload.handle(), create_object((uint8_t*)msg->payload, msg->len));
         }
         messages->Set(n++, obj);
     }
