@@ -316,12 +316,13 @@ Common::common_init(std::string *error) {
         log_event_callback_.reset(new NanCallback(log_cb_fn));
     }
 
+    const int errsize = 512;
+    char errstr[errsize];
+
     // look for RD_KAFKA_DEBUG_CONTEXTS for debug options
     // rd_kafka_conf_set(conf, "debug", "all", errstr, sizeof(errstr));
     // rd_kafka_conf_set(conf, "debug", "generic,broker,producer,queue", errstr, sizeof(errstr));
-
-    const int errsize = 512;
-    char errstr[errsize];
+    // rd_kafka_conf_set(conf, "debug", "topic", errstr, sizeof(errstr));
 
     static PersistentString driver_options_key("driver_options");
     Local<Object> driver_options = options_->Get(driver_options_key).As<Object>();
