@@ -1,7 +1,11 @@
 {
-  "name": "jut-kafka-node",
+  "name": "jut-node-kafka",
   "version": "0.0.1",
   "description": "node.js Kafka client",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jut-io/jut-node-kafka"
+  },
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
