@@ -123,12 +123,6 @@ WRAPPED_METHOD(Producer, Send) {
         topic, partition, RD_KAFKA_MSG_F_FREE, messages, message_cnt);
 
     if (sent != message_cnt) {
-        // TODO: logging for this case
-        // int kafka_err = errno;
-        // cerr << "produce_batch failed, sent " << sent
-        //      << " of " << message_cnt << " messages, kafka error "
-        //      << rd_kafka_err2str(rd_kafka_errno2err(kafka_err)) << "\n";
-
         // Since rdkafka didn't take ownership of these,
         // we need to free them ourselves.
         for (uint32_t i = 0; i < (message_cnt - sent); ++i) {

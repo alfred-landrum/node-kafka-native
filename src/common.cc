@@ -233,7 +233,6 @@ Common::kafka_poller() {
 
 rd_kafka_topic_t*
 Common::setup_topic(const char *name, std::string *error) {
-    /* run from v8 thread */
     NanScope();
 
     rd_kafka_topic_t *topic = get_topic(name);
@@ -288,7 +287,6 @@ Common::get_topic(const char *name) {
 
 int
 Common::common_init(std::string *error) {
-    /* run from v8 thread */
     NanScope();
 
     rd_kafka_conf_t *conf = rd_kafka_conf_new();

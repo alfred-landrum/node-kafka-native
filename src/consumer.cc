@@ -190,7 +190,7 @@ WRAPPED_METHOD(Consumer, SetOffset) {
 
     if (args.Length() != 3 ||
         !( args[0]->IsString() && args[1]->IsNumber() && args[2]->IsNumber() )) {
-        NanThrowError("you must supply a topic name, parition, and offset");
+        NanThrowError("you must supply a topic name, partition, and offset");
         NanReturnUndefined();
     }
 
@@ -205,7 +205,7 @@ WRAPPED_METHOD(Consumer, SetOffset) {
     int64_t offset = args[2]->IntegerValue();
 
     int err = rd_kafka_offset_store(topic, partition, offset);
-    // only possible error from librdkafka is uknown partition
+    // only possible error from librdkafka is unknown partition
     assert(err == 0);
 
     NanReturnUndefined();
