@@ -27,6 +27,11 @@
             },
             'libraries' : ['-lz']
           }
+        ],[
+          'OS=="linux"',
+          {
+            'cflags': ['-std=c++11'],
+          }
         ]
       ]
     },
@@ -80,6 +85,11 @@
               'OTHER_CFLAGS' : [ '-Wno-sign-compare', '-Wno-missing-field-initializers' ],
             },
             'libraries' : ['-lz']
+          }
+        ],[
+          'OS=="linux"',
+          {
+            'cflags' : [ '-Wno-sign-compare', '-Wno-missing-field-initializers', '-Wno-empty-body' ],
           }
         ]
       ]
