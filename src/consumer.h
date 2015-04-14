@@ -28,6 +28,7 @@ private:
     WRAPPED_METHOD_DECL(StartRecv);
     WRAPPED_METHOD_DECL(StopRecv);
     WRAPPED_METHOD_DECL(SetOffset);
+    WRAPPED_METHOD_DECL(GetMetadata);
 
     static v8::Persistent<v8::Function> constructor;
 

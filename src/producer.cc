@@ -30,6 +30,7 @@ Producer::Init() {
     Common::Init(tpl);
 
     NODE_SET_PROTOTYPE_METHOD(tpl, "send", WRAPPED_METHOD_NAME(Send));
+    NODE_SET_PROTOTYPE_METHOD(tpl, "get_metadata", WRAPPED_METHOD_NAME(GetMetadata));
 
     NanAssignPersistent(constructor, tpl->GetFunction());
 }
@@ -132,4 +133,10 @@ WRAPPED_METHOD(Producer, Send) {
     }
 
     NanReturnValue(NanNew<Number>(sent));
+}
+
+WRAPPED_METHOD(Producer, GetMetadata) {
+    NanScope();
+    get_metadata(args);
+    NanReturnUndefined();
 }

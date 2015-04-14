@@ -352,3 +352,137 @@ Common::common_init(std::string *error) {
     Ref();
     return 0;
 }
+
+Local<Object> metadata_to_jsobj(struct rd_kafka_metadata *metadata) {
+    NanEscapableScope();
+
+    static PersistentString error_key("error");
+
+    Local<Object> obj = NanNew<Object>();
+
+    static PersistentString orig_broker_id_key("orig_broker_id");
+    static PersistentString orig_broker_name_key("orig_broker_name");
+    obj->Set(orig_broker_id_key.handle(), NanNew<Number>(metadata->orig_broker_id));
+    obj->Set(orig_broker_name_key.handle(), NanNew<String>(metadata->orig_broker_name));
+
+    static PersistentString brokers_key("brokers");
+    static PersistentString id_key("id");
+    static PersistentString host_key("host");
+    static PersistentString port_key("port");
+
+    Local<Object> brokers_obj = NanNew<Object>();
+    for (int i = 0; i < metadata->broker_cnt; ++i) {
+        struct rd_kafka_metadata_broker *broker = &metadata->brokers[i];
+        Local<Object> broker_obj = NanNew<Object>();
+        broker_obj->Set(id_key.handle(), NanNew<Number>(broker->id));
+        broker_obj->Set(host_key.handle(), NanNew<String>(broker->host));
+        broker_obj->Set(port_key.handle(), NanNew<Number>(broker->port));
+        brokers_obj->Set(i, broker_obj);
+    }
+    obj->Set(brokers_key.handle(), brokers_obj);
+
+    static PersistentString topics_key("topics");
+    static PersistentString partitions_key("partitions");
+    static PersistentString topic_key("topic");
+
+    Local<Object> topics_obj = NanNew<Array>();
+    for (int i = 0; i < metadata->topic_cnt; ++i) {
+        struct rd_kafka_metadata_topic *topic = &metadata->topics[i];
+        Local<Object> topic_obj = NanNew<Object>();
+        topic_obj->Set(topic_key.handle(), NanNew<String>(topic->topic));
+        topic_obj->Set(error_key.handle(), NanNew<Number>(topic->err));
+
+        Local<Object> partitions_obj = NanNew<Array>();
+        for (int j = 0; j < topic->partition_cnt; ++j) {
+            struct rd_kafka_metadata_partition *partition = &topic->partitions[j];
+            Local<Object> partition_obj = NanNew<Object>();
+            partition_obj->Set(id_key.handle(), NanNew<Number>(partition->id));
+            partition_obj->Set(error_key.handle(), NanNew<Number>(partition->err));
+            // XXX leader, replica, isr
+            partitions_obj->Set(j, partition_obj);
+        }
+        topic_obj->Set(partitions_key.handle(), partitions_obj);
+        topics_obj->Set(i, topic_obj);
+    }
+    obj->Set(topics_key.handle(), topics_obj);
+
+    return NanEscapeScope(obj);
+}
+
+
+class MetadataWorker : public NanAsyncWorker {
+ public:
+  MetadataWorker(   NanCallback *callback,
+                    rd_kafka_t *client,
+                    rd_kafka_topic_t *topic)
+    :   NanAsyncWorker(callback),
+        client_(client),
+        topic_(topic),
+        metadata_(NULL)
+    {}
+  ~MetadataWorker() {
+    if (metadata_) {
+        rd_kafka_metadata_destroy(metadata_);
+        metadata_ = NULL;
+    }
+  }
+
+  void Execute () {
+    // worker thread
+    rd_kafka_resp_err_t err;
+    const int timeout_ms = 1000;
+
+    err = rd_kafka_metadata(client_, /*all_topics*/ 0, topic_,
+            (const struct rd_kafka_metadata **) &metadata_, timeout_ms);
+    if (err) {
+        std::string errstr = Common::rdk_error_string(err);
+        SetErrorMessage(errstr.c_str());
+        return;
+    }
+  }
+
+  // Executed when the async work is complete
+  // this function will be run inside the main event loop
+  // so it is safe to use V8 again
+  void HandleOKCallback () {
+    NanScope();
+
+    Local<Value> argv[] = {
+        NanNull(),
+        metadata_to_jsobj(metadata_)
+    };
+
+    callback->Call(2, argv);
+  }
+
+ private:
+    rd_kafka_t *client_;
+    rd_kafka_topic_t *topic_;
+    struct rd_kafka_metadata *metadata_;
+};
+
+NAN_METHOD(Common::get_metadata)
+{
+    NanScope();
+
+    if (args.Length() != 2 ||
+        !( args[0]->IsString() && args[1]->IsFunction()) ) {
+        NanThrowError("you must supply a topic name and callback");
+        NanReturnUndefined();
+    }
+
+    String::AsciiValue topic_name(args[0]);
+    rd_kafka_topic_t *topic = get_topic(*topic_name);
+    if (!topic) {
+        string error;
+        topic = setup_topic(*topic_name, &error);
+        if (!topic) {
+            NanThrowError(error.c_str());
+            NanReturnUndefined();
+        }
+    }
+
+    NanCallback *callback = new NanCallback(args[1].As<Function>());
+    NanAsyncQueueWorker(new MetadataWorker(callback, kafka_client_, topic));
+    NanReturnUndefined();
+}

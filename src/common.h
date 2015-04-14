@@ -30,6 +30,8 @@ public:
     static void Init(const v8::Local<v8::FunctionTemplate> &tpl);
     int common_init(std::string *error);
 
+    NAN_METHOD(get_metadata);
+
     v8::Persistent<v8::Object> options_;
 
     std::vector<std::unique_ptr<KafkaEvent> > ke_queue_;

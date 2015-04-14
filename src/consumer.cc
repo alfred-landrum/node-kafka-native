@@ -43,6 +43,7 @@ Consumer::Init() {
     NODE_SET_PROTOTYPE_METHOD(tpl, "start_recv", WRAPPED_METHOD_NAME(StartRecv));
     NODE_SET_PROTOTYPE_METHOD(tpl, "stop_recv", WRAPPED_METHOD_NAME(StopRecv));
     NODE_SET_PROTOTYPE_METHOD(tpl, "set_offset", WRAPPED_METHOD_NAME(SetOffset));
+    NODE_SET_PROTOTYPE_METHOD(tpl, "get_metadata", WRAPPED_METHOD_NAME(GetMetadata));
 
     NanAssignPersistent(constructor, tpl->GetFunction());
 }
@@ -208,6 +209,12 @@ WRAPPED_METHOD(Consumer, SetOffset) {
     // only possible error from librdkafka is unknown partition
     assert(err == 0);
 
+    NanReturnUndefined();
+}
+
+WRAPPED_METHOD(Consumer, GetMetadata) {
+    NanScope();
+    get_metadata(args);
     NanReturnUndefined();
 }
 
