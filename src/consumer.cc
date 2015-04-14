@@ -260,17 +260,6 @@ Consumer::kafka_consumer() {
     }
 }
 
-Local<Value>
-Consumer::create_object(const unsigned char* data, size_t size) {
-    NanScope();
-    const bool recv_as_strings = true;
-    if (recv_as_strings) {
-        return NanNew<String>(data, size);
-    } else {
-        return buffer_pool_.allocate(data, size);
-    }
-}
-
 void
 Consumer::kafka_recv(const vector<rd_kafka_message_t*> &vec) {
     // called in v8 thread
@@ -288,6 +277,7 @@ Consumer::kafka_recv(const vector<rd_kafka_message_t*> &vec) {
 
     uint good = 0;
     size_t n = 0;
+    const bool recv_as_strings = true;
     Local<Array> messages = NanNew<Array>();
     for (auto msg : vec) {
         if (msg->err) {
@@ -298,11 +288,20 @@ Consumer::kafka_recv(const vector<rd_kafka_message_t*> &vec) {
         obj->Set(topic.handle(), NanNew<String>(rd_kafka_topic_name(msg->rkt)));
         obj->Set(partition.handle(), NanNew<Number>(msg->partition));
         obj->Set(offset.handle(), NanNew<Number>(msg->offset));
-        if (msg->key_len) {
-            obj->Set(key.handle(), create_object((uint8_t*)msg->key, msg->key_len));
-        }
-        if (msg->len) {
-            obj->Set(payload.handle(), create_object((uint8_t*)msg->payload, msg->len));
+        if (recv_as_strings) {
+            if (msg->key_len) {
+                obj->Set(key.handle(), NanNew<String>((char*)msg->key, msg->key_len));
+            }
+            if (msg->len) {
+                obj->Set(payload.handle(), NanNew<String>((char*)msg->payload, msg->len));
+            }
+        } else {
+            if (msg->key_len) {
+                obj->Set(key.handle(), buffer_pool_.allocate((const unsigned char *)msg->key, msg->key_len));
+            }
+            if (msg->len) {
+                obj->Set(payload.handle(), buffer_pool_.allocate((const unsigned char *)msg->payload, msg->len));
+            }
         }
         messages->Set(n++, obj);
     }

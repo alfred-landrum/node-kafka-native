@@ -40,5 +40,4 @@ private:
     bool shutdown_;
 
     BufferPool buffer_pool_;
-    v8::Local<v8::Value> create_object(const unsigned char* data, size_t size);
 };
