@@ -384,6 +384,9 @@ Local<Object> metadata_to_jsobj(struct rd_kafka_metadata *metadata) {
     static PersistentString topics_key("topics");
     static PersistentString partitions_key("partitions");
     static PersistentString topic_key("topic");
+    static PersistentString leader_key("leader");
+    static PersistentString replicas_key("replicas");
+    static PersistentString isrs_key("isrs");
 
     Local<Object> topics_obj = NanNew<Array>();
     for (int i = 0; i < metadata->topic_cnt; ++i) {
@@ -398,10 +401,24 @@ Local<Object> metadata_to_jsobj(struct rd_kafka_metadata *metadata) {
             Local<Object> partition_obj = NanNew<Object>();
             partition_obj->Set(id_key.handle(), NanNew<Number>(partition->id));
             partition_obj->Set(error_key.handle(), NanNew<Number>(partition->err));
-            // XXX leader, replica, isr
+            partition_obj->Set(leader_key.handle(), NanNew<Number>(partition->leader));
+
+            Local<Object> replicas_obj = NanNew<Array>();
+            for (int k = 0; k < partition->replica_cnt; ++k) {
+                replicas_obj->Set(k, NanNew<Number>(partition->replicas[k]));
+            }
+            partition_obj->Set(replicas_key.handle(), replicas_obj);
+
+            Local<Object> isrs_obj = NanNew<Array>();
+            for (int k = 0; k < partition->isr_cnt; ++k) {
+                isrs_obj->Set(k, NanNew<Number>(partition->isrs[k]));
+            }
+            partition_obj->Set(isrs_key.handle(), isrs_obj);
+
             partitions_obj->Set(j, partition_obj);
         }
         topic_obj->Set(partitions_key.handle(), partitions_obj);
+
         topics_obj->Set(i, topic_obj);
     }
     obj->Set(topics_key.handle(), topics_obj);
