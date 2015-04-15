@@ -31,6 +31,7 @@
           'OS=="linux"',
           {
             'cflags': ['-std=c++11'],
+            'libraries' : ['-lz']
           }
         ]
       ]
