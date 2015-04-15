@@ -38,8 +38,6 @@ Consumer::Init() {
     tpl->SetClassName(NanNew("Consumer"));
     tpl->InstanceTemplate()->SetInternalFieldCount(1);
 
-    Common::Init(tpl);
-
     NODE_SET_PROTOTYPE_METHOD(tpl, "start_recv", WRAPPED_METHOD_NAME(StartRecv));
     NODE_SET_PROTOTYPE_METHOD(tpl, "stop_recv", WRAPPED_METHOD_NAME(StopRecv));
     NODE_SET_PROTOTYPE_METHOD(tpl, "set_offset", WRAPPED_METHOD_NAME(SetOffset));
@@ -48,7 +46,8 @@ Consumer::Init() {
     NanAssignPersistent(constructor, tpl->GetFunction());
 }
 
-Local<Object> Consumer::NewInstance(Local<Value> arg) {
+Local<Object>
+Consumer::NewInstance(Local<Value> arg) {
     NanEscapableScope();
 
     const unsigned argc = 1;
@@ -84,7 +83,8 @@ NAN_METHOD(Consumer::New) {
     NanReturnValue(args.This());
 }
 
-void consumer_trampoline(void *_consumer) {
+void
+consumer_trampoline(void *_consumer) {
     ((Consumer *)_consumer)->kafka_consumer();
 }
 
@@ -269,11 +269,11 @@ Consumer::kafka_recv(const vector<rd_kafka_message_t*> &vec) {
         return;
     }
 
-    static PersistentString topic("topic");
-    static PersistentString partition("partition");
-    static PersistentString offset("offset");
-    static PersistentString payload("payload");
-    static PersistentString key("key");
+    static PersistentString topic_key("topic");
+    static PersistentString partition_key("partition");
+    static PersistentString offset_key("offset");
+    static PersistentString payload_key("payload");
+    static PersistentString key_key("key");
 
     uint good = 0;
     size_t n = 0;
@@ -285,22 +285,22 @@ Consumer::kafka_recv(const vector<rd_kafka_message_t*> &vec) {
         }
         good++;
         Local<Object> obj = NanNew<Object>();
-        obj->Set(topic.handle(), NanNew<String>(rd_kafka_topic_name(msg->rkt)));
-        obj->Set(partition.handle(), NanNew<Number>(msg->partition));
-        obj->Set(offset.handle(), NanNew<Number>(msg->offset));
+        obj->Set(topic_key.handle(), NanNew<String>(rd_kafka_topic_name(msg->rkt)));
+        obj->Set(partition_key.handle(), NanNew<Number>(msg->partition));
+        obj->Set(offset_key.handle(), NanNew<Number>(msg->offset));
         if (recv_as_strings) {
             if (msg->key_len) {
-                obj->Set(key.handle(), NanNew<String>((char*)msg->key, msg->key_len));
+                obj->Set(key_key.handle(), NanNew<String>((char*)msg->key, msg->key_len));
             }
             if (msg->len) {
-                obj->Set(payload.handle(), NanNew<String>((char*)msg->payload, msg->len));
+                obj->Set(payload_key.handle(), NanNew<String>((char*)msg->payload, msg->len));
             }
         } else {
             if (msg->key_len) {
-                obj->Set(key.handle(), buffer_pool_.allocate((const unsigned char *)msg->key, msg->key_len));
+                obj->Set(key_key.handle(), buffer_pool_.allocate((const unsigned char *)msg->key, msg->key_len));
             }
             if (msg->len) {
-                obj->Set(payload.handle(), buffer_pool_.allocate((const unsigned char *)msg->payload, msg->len));
+                obj->Set(payload_key.handle(), buffer_pool_.allocate((const unsigned char *)msg->payload, msg->len));
             }
         }
         messages->Set(n++, obj);

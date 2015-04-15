@@ -10,10 +10,6 @@ using namespace std;
 using namespace v8;
 
 void
-Common::Init(const Local<FunctionTemplate> &tpl) {
-}
-
-void
 ke_async_ready(uv_async_t* handle, int status)
 {
     Common* common = (Common*)handle->data;
@@ -85,14 +81,14 @@ protected:
     Local<Object> toJsObject() {
         NanEscapableScope();
 
-        static PersistentString level("level");
-        static PersistentString facility("facility");
-        static PersistentString message("message");
+        static PersistentString level_key("level");
+        static PersistentString facility_key("facility");
+        static PersistentString message_key("message");
 
         Local<Object> obj = NanNew<Object>();
-        obj->Set(level.handle(), NanNew<Number>(level_));
-        obj->Set(facility.handle(), NanNew<String>(facility_));
-        obj->Set(message.handle(), NanNew<String>(message_));
+        obj->Set(level_key.handle(), NanNew<Number>(level_));
+        obj->Set(facility_key.handle(), NanNew<String>(facility_));
+        obj->Set(message_key.handle(), NanNew<String>(message_));
 
         return NanEscapeScope(obj);
     }
@@ -133,13 +129,13 @@ protected:
     Local<Object> toJsObject() {
         NanEscapableScope();
 
-        static PersistentString error("error");
-        static PersistentString reason("reason");
+        static PersistentString error_key("error");
+        static PersistentString reason_key("reason");
 
         Local<Object> jsobj = NanNew<Object>();
 
-        jsobj->Set(error.handle(), NanNew<Number>(error_));
-        jsobj->Set(reason.handle(), NanNew<String>(reason_));
+        jsobj->Set(error_key.handle(), NanNew<Number>(error_));
+        jsobj->Set(reason_key.handle(), NanNew<String>(reason_));
 
         return NanEscapeScope(jsobj);
     }
@@ -218,7 +214,8 @@ Common::ke_check()
     } while (true);
 }
 
-void poller_trampoline(void *_common) {
+void
+poller_trampoline(void *_common) {
     ((Common *)_common)->kafka_poller();
 }
 
@@ -300,15 +297,15 @@ Common::common_init(std::string *error) {
         stat_event_callback_.reset(new NanCallback(stat_cb_fn));
     }
 
-    static PersistentString error_cb("error_cb");
-    Local<Function> error_cb_fn = options_->Get(error_cb).As<Function>();
+    static PersistentString error_cb_key("error_cb");
+    Local<Function> error_cb_fn = options_->Get(error_cb_key).As<Function>();
     if (error_cb_fn != NanUndefined()) {
         rd_kafka_conf_set_error_cb(conf, ErrorEvent::kafka_cb);
         error_event_callback_.reset(new NanCallback(error_cb_fn));
     }
 
-    static PersistentString log_cb("log_cb");
-    Local<Function> log_cb_fn = options_->Get(log_cb).As<Function>();
+    static PersistentString log_cb_key("log_cb");
+    Local<Function> log_cb_fn = options_->Get(log_cb_key).As<Function>();
     if (log_cb_fn != NanUndefined()) {
         rd_kafka_conf_set_log_cb(conf, LogEvent::kafka_cb);
         log_event_callback_.reset(new NanCallback(log_cb_fn));
@@ -353,7 +350,8 @@ Common::common_init(std::string *error) {
     return 0;
 }
 
-Local<Object> metadata_to_jsobj(struct rd_kafka_metadata *metadata) {
+Local<Object>
+metadata_to_jsobj(struct rd_kafka_metadata *metadata) {
     NanEscapableScope();
 
     static PersistentString error_key("error");
@@ -428,51 +426,51 @@ Local<Object> metadata_to_jsobj(struct rd_kafka_metadata *metadata) {
 
 
 class MetadataWorker : public NanAsyncWorker {
- public:
-  MetadataWorker(   NanCallback *callback,
+public:
+    MetadataWorker( NanCallback *callback,
                     rd_kafka_t *client,
-                    rd_kafka_topic_t *topic)
-    :   NanAsyncWorker(callback),
-        client_(client),
-        topic_(topic),
-        metadata_(NULL)
+                    rd_kafka_topic_t *topic):
+            NanAsyncWorker(callback),
+            client_(client),
+            topic_(topic),
+            metadata_(NULL)
     {}
-  ~MetadataWorker() {
-    if (metadata_) {
-        rd_kafka_metadata_destroy(metadata_);
-        metadata_ = NULL;
+
+    ~MetadataWorker() {
+        if (metadata_) {
+            rd_kafka_metadata_destroy(metadata_);
+            metadata_ = NULL;
+        }
     }
-  }
 
-  void Execute () {
-    // worker thread
-    rd_kafka_resp_err_t err;
-    const int timeout_ms = 1000;
+    void Execute () {
+        // worker thread
+        rd_kafka_resp_err_t err;
+        const int timeout_ms = 1000;
 
-    err = rd_kafka_metadata(client_, /*all_topics*/ 0, topic_,
+        err = rd_kafka_metadata(client_, /*all_topics*/ 0, topic_,
             (const struct rd_kafka_metadata **) &metadata_, timeout_ms);
-    if (err) {
-        std::string errstr = Common::rdk_error_string(err);
-        SetErrorMessage(errstr.c_str());
-        return;
+        if (err) {
+            std::string errstr = Common::rdk_error_string(err);
+            SetErrorMessage(errstr.c_str());
+        }
     }
-  }
 
-  // Executed when the async work is complete
-  // this function will be run inside the main event loop
-  // so it is safe to use V8 again
-  void HandleOKCallback () {
-    NanScope();
+    // Executed when the async work is complete
+    // this function will be run inside the main event loop
+    // so it is safe to use V8 again
+    void HandleOKCallback () {
+        NanScope();
 
-    Local<Value> argv[] = {
-        NanNull(),
-        metadata_to_jsobj(metadata_)
-    };
+        Local<Value> argv[] = {
+            NanNull(),
+            metadata_to_jsobj(metadata_)
+        };
 
-    callback->Call(2, argv);
-  }
+        callback->Call(2, argv);
+    }
 
- private:
+private:
     rd_kafka_t *client_;
     rd_kafka_topic_t *topic_;
     struct rd_kafka_metadata *metadata_;

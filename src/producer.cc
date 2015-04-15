@@ -27,15 +27,14 @@ Producer::Init() {
     tpl->SetClassName(NanNew("Producer"));
     tpl->InstanceTemplate()->SetInternalFieldCount(1);
 
-    Common::Init(tpl);
-
     NODE_SET_PROTOTYPE_METHOD(tpl, "send", WRAPPED_METHOD_NAME(Send));
     NODE_SET_PROTOTYPE_METHOD(tpl, "get_metadata", WRAPPED_METHOD_NAME(GetMetadata));
 
     NanAssignPersistent(constructor, tpl->GetFunction());
 }
 
-Local<Object> Producer::NewInstance(Local<Value> arg) {
+Local<Object>
+Producer::NewInstance(Local<Value> arg) {
     NanEscapableScope();
 
     const unsigned argc = 1;

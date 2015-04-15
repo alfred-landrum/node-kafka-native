@@ -22,12 +22,11 @@ protected:
 
 class Common : public node::ObjectWrap {
 public:
-    explicit Common(rd_kafka_type_t ktype, v8::Local<v8::Object> &options);
+    Common(rd_kafka_type_t ktype, v8::Local<v8::Object> &options);
     ~Common();
     Common(const Common &) = delete;
     Common &operator=(const Common &) = delete;
 
-    static void Init(const v8::Local<v8::FunctionTemplate> &tpl);
     int common_init(std::string *error);
 
     NAN_METHOD(get_metadata);
