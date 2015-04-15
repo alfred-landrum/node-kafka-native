@@ -104,8 +104,8 @@ protected:
 
     Common *common_;
     int level_;
-    std::string facility_;
-    std::string message_;
+    string facility_;
+    string message_;
 };
 
 class ErrorEvent : public KafkaEvent {
@@ -150,7 +150,7 @@ protected:
 
     Common *common_;
     int error_;
-    std::string reason_;
+    string reason_;
 };
 
 class StatEvent : public KafkaEvent {
@@ -181,7 +181,7 @@ protected:
     virtual ~StatEvent() {}
 
     Common *common_;
-    std::string stats_;
+    string stats_;
 };
 
 void
@@ -229,7 +229,7 @@ Common::kafka_poller() {
 }
 
 rd_kafka_topic_t*
-Common::setup_topic(const char *name, std::string *error) {
+Common::setup_topic(const char *name, string *error) {
     NanScope();
 
     rd_kafka_topic_t *topic = get_topic(name);
@@ -283,7 +283,7 @@ Common::get_topic(const char *name) {
 }
 
 int
-Common::common_init(std::string *error) {
+Common::common_init(string *error) {
     NanScope();
 
     rd_kafka_conf_t *conf = rd_kafka_conf_new();
@@ -451,7 +451,7 @@ public:
         err = rd_kafka_metadata(client_, /*all_topics*/ 0, topic_,
             (const struct rd_kafka_metadata **) &metadata_, timeout_ms);
         if (err) {
-            std::string errstr = Common::rdk_error_string(err);
+            string errstr(Common::rdk_error_string(err));
             SetErrorMessage(errstr.c_str());
         }
     }
