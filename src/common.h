@@ -2,7 +2,7 @@
 #include <string>
 #include <memory>
 #include <vector>
-#include <unordered_map>
+#include <map>
 #include <node.h>
 #include <nan.h>
 
@@ -46,7 +46,7 @@ public:
 
     rd_kafka_type_t ktype_;
     rd_kafka_t *kafka_client_;
-    std::unordered_map<std::string, rd_kafka_topic_t*> topics_;
+    std::map<std::string, rd_kafka_topic_t*> topics_;
 
     // callbacks
     std::unique_ptr<NanCallback> stat_event_callback_;
