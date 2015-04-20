@@ -274,20 +274,27 @@ Consumer::kafka_recv(const vector<rd_kafka_message_t*> &vec) {
     static PersistentString offset_key("offset");
     static PersistentString payload_key("payload");
     static PersistentString key_key("key");
+    static PersistentString errcode_key("errcode");
 
-    uint good = 0;
-    size_t n = 0;
+    int msg_idx = -1;
+    int err_idx = -1;
+
     const bool recv_as_strings = true;
     Local<Array> messages = NanNew<Array>();
+    Local<Array> errors = NanNew<Array>();
     for (auto msg : vec) {
-        if (msg->err) {
-            continue;
-        }
-        good++;
         Local<Object> obj = NanNew<Object>();
+
         obj->Set(topic_key.handle(), NanNew<String>(rd_kafka_topic_name(msg->rkt)));
         obj->Set(partition_key.handle(), NanNew<Number>(msg->partition));
         obj->Set(offset_key.handle(), NanNew<Number>(msg->offset));
+
+        if (msg->err) {
+            obj->Set(errcode_key.handle(), NanNew<Number>(msg->err));
+            errors->Set(++err_idx, obj);
+            continue;
+        }
+
         if (recv_as_strings) {
             if (msg->key_len) {
                 obj->Set(key_key.handle(), NanNew<String>((char*)msg->key, msg->key_len));
@@ -303,10 +310,11 @@ Consumer::kafka_recv(const vector<rd_kafka_message_t*> &vec) {
                 obj->Set(payload_key.handle(), buffer_pool_.allocate((const unsigned char *)msg->payload, msg->len));
             }
         }
-        messages->Set(n++, obj);
+        messages->Set(++msg_idx, obj);
     }
-    if (good) {
-        Local<Value> argv[] = { messages };
-        recv_callback_->Call(1, argv);
+
+    if (msg_idx > -1 || err_idx > -1) {
+        Local<Value> argv[] = { messages, errors };
+        recv_callback_->Call(2, argv);
     }
 }
