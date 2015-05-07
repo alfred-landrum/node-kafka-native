@@ -62,8 +62,15 @@ var rd_kafka_errs = (function() {
     return ret;
 })();
 
+rd_kafka_offsets = {
+    RD_KAFKA_OFFSET_BEGINNING: -2,
+    RD_KAFKA_OFFSET_END: -1,
+    RD_KAFKA_OFFSET_STORED: -1000,
+};
+
 module.exports = {
     RawConsumer: addon.Consumer,
     RawProducer: addon.Producer,
     rd_kafka_errs: rd_kafka_errs,
+    rd_kafka_offsets: rd_kafka_offsets,
 };

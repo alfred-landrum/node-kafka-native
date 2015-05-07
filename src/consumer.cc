@@ -120,9 +120,9 @@ WRAPPED_METHOD(Consumer, StartRecv) {
         NanReturnUndefined();
     }
 
-    if (args.Length() != 2 ||
-        !( args[0]->IsString() && args[1]->IsNumber()) ) {
-        NanThrowError("you must supply a topic name and partition");
+    if (args.Length() != 3 ||
+        !( args[0]->IsString() && args[1]->IsNumber() && args[2]->IsNumber()) ) {
+        NanThrowError("you must supply a topic name, partition, and offset");
         NanReturnUndefined();
     }
 
@@ -145,7 +145,9 @@ WRAPPED_METHOD(Consumer, StartRecv) {
         }
     }
 
-    if (rd_kafka_consume_start_queue(topic, partition, RD_KAFKA_OFFSET_STORED, kafka_queue_)) {
+    int64_t offset = args[2].As<Number>()->IntegerValue();
+
+    if (rd_kafka_consume_start_queue(topic, partition, offset, kafka_queue_)) {
         int kafka_errno = errno;
         NanThrowError(rdk_error_string(kafka_errno).c_str());
         NanReturnUndefined();
