@@ -13,7 +13,7 @@ Consumer::Consumer(Local<Object> &options):
     Common(RD_KAFKA_CONSUMER, options),
     toppars_(),
     recv_callback_(),
-    kafka_queue_(NULL),
+    kafka_queue_(nullptr),
     shutdown_(false),
     buffer_pool_()
 {
@@ -23,7 +23,7 @@ Consumer::~Consumer()
 {
     if (kafka_queue_) {
         rd_kafka_queue_destroy(kafka_queue_);
-        kafka_queue_ = NULL;
+        kafka_queue_ = nullptr;
     }
 }
 
@@ -231,7 +231,7 @@ public:
     virtual ~RecvEvent() {
         for (auto &msg : msgs_) {
             rd_kafka_message_destroy(msg);
-            msg = NULL;
+            msg = nullptr;
         }
     }
 

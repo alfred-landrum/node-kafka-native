@@ -18,8 +18,8 @@ ke_async_ready(uv_async_t* handle, int status)
 
 Common::Common(rd_kafka_type_t ktype, v8::Local<v8::Object> &options):
     ktype_(ktype),
-    kafka_client_(NULL),
-    poll_thread_(0),
+    kafka_client_(nullptr),
+    poll_thread_(nullptr),
     shutting_(false)
 {
     uv_mutex_init(&ke_queue_lock_);
@@ -42,16 +42,16 @@ Common::~Common()
 
     for (auto& iter : topics_) {
         rd_kafka_topic_destroy(iter.second);
-        iter.second = NULL;
+        iter.second = nullptr;
     }
     // TODO: investigate rd_kafka_wait_destroyed
     if (kafka_client_) {
         rd_kafka_destroy(kafka_client_);
-        kafka_client_ = NULL;
+        kafka_client_ = nullptr;
     }
 
     uv_mutex_destroy(&ke_queue_lock_);
-    uv_close((uv_handle_t*)&ke_async_, NULL);
+    uv_close((uv_handle_t*)&ke_async_, nullptr);
 }
 
 string
@@ -253,7 +253,7 @@ Common::setup_topic(const char *name, string *error) {
                                         errstr, errsize) != RD_KAFKA_CONF_OK) {
                 *error = string(errstr);
                 rd_kafka_topic_conf_destroy(conf);
-                return NULL;
+                return nullptr;
             }
         }
     }
@@ -263,10 +263,10 @@ Common::setup_topic(const char *name, string *error) {
         int kafka_errno = errno;
         *error = rdk_error_string(kafka_errno);
         rd_kafka_topic_conf_destroy(conf);
-        return NULL;
+        return nullptr;
     }
     // conf now owned by rd_kafka
-    conf = NULL;
+    conf = nullptr;
 
     topics_.insert(make_pair(name, topic));
 
@@ -279,7 +279,7 @@ Common::get_topic(const char *name) {
     if (iter != topics_.end()) {
         return iter->second;
     }
-    return NULL;
+    return nullptr;
 }
 
 int
@@ -342,7 +342,7 @@ Common::common_init(string *error) {
         return -1;
     }
     // conf now owned by rd_kafka
-    conf = NULL;
+    conf = nullptr;
 
     uv_thread_create(&poll_thread_, poller_trampoline, this);
 
@@ -433,13 +433,13 @@ public:
             NanAsyncWorker(callback),
             client_(client),
             topic_(topic),
-            metadata_(NULL)
+            metadata_(nullptr)
     {}
 
     ~MetadataWorker() {
         if (metadata_) {
             rd_kafka_metadata_destroy(metadata_);
-            metadata_ = NULL;
+            metadata_ = nullptr;
         }
     }
 
