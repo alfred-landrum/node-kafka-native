@@ -6,6 +6,7 @@
 #include "common.h"
 #include "wrapped-method.h"
 #include "buffer-pool.h"
+#include <list>
 
 class Consumer : public Common {
 public:
@@ -32,11 +33,12 @@ private:
 
     static v8::Persistent<v8::Function> constructor;
 
-    std::vector<std::pair<rd_kafka_topic_t*, uint32_t> > toppars_;
+    std::list<uint32_t> partitions_;
     std::unique_ptr<NanCallback> recv_callback_;
 
     uv_thread_t consume_thread_;
     rd_kafka_queue_t *kafka_queue_;
+    rd_kafka_topic_t *topic_;
     bool shutdown_;
 
     BufferPool buffer_pool_;

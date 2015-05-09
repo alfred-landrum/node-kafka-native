@@ -11,9 +11,10 @@ using namespace std;
 
 Consumer::Consumer(Local<Object> &options):
     Common(RD_KAFKA_CONSUMER, options),
-    toppars_(),
+    partitions_(),
     recv_callback_(),
     kafka_queue_(nullptr),
+    topic_(nullptr),
     shutdown_(false),
     buffer_pool_()
 {
@@ -25,6 +26,8 @@ Consumer::~Consumer()
         rd_kafka_queue_destroy(kafka_queue_);
         kafka_queue_ = nullptr;
     }
+    // rd_kafka_topic_destroy() called in ~Common
+    topic_ = nullptr;
 }
 
 Persistent<Function> Consumer::constructor;
@@ -91,6 +94,18 @@ int
 Consumer::consumer_init(string *error) {
     NanScope();
 
+    static PersistentString topic_key("topic");
+    Local<String> name = options_->Get(topic_key).As<String>();
+    if (name == NanUndefined()) {
+        *error = "options must contain a topic";
+        return -1;
+    }
+    String::AsciiValue topic_name(name);
+    topic_ = setup_topic(*topic_name, error);
+    if (!topic_) {
+        return -1;
+    }
+
     static PersistentString recv_cb_key("recv_cb");
     Local<Function> recv_cb_fn = options_->Get(recv_cb_key).As<Function>();
     if (recv_cb_fn == NanUndefined()) {
@@ -119,40 +134,27 @@ WRAPPED_METHOD(Consumer, StartRecv) {
         NanReturnUndefined();
     }
 
-    if (args.Length() != 3 ||
-        !( args[0]->IsString() && args[1]->IsNumber() && args[2]->IsNumber()) ) {
-        NanThrowError("you must supply a topic name, partition, and offset");
+    if (args.Length() != 2 ||
+        !( args[0]->IsNumber() && args[1]->IsNumber()) ) {
+        NanThrowError("you must supply a partition and offset");
         NanReturnUndefined();
     }
 
-    String::AsciiValue topic_name(args[0]);
-    rd_kafka_topic_t *topic = get_topic(*topic_name);
-    if (!topic) {
-        string error;
-        topic = setup_topic(*topic_name, &error);
-        if (!topic) {
-            NanThrowError(error.c_str());
-            NanReturnUndefined();
-        }
+    uint32_t partition = args[0].As<Number>()->Uint32Value();
+    if (find(partitions_.begin(), partitions_.end(), partition) != partitions_.end()) {
+        NanThrowError("already receiving for requested partition");
+        NanReturnUndefined();
     }
 
-    uint32_t partition = args[1].As<Number>()->Uint32Value();
-    for (auto &i : toppars_) {
-        if (i.first == topic && i.second == partition) {
-            NanThrowError("already receiving for requested topic and partition");
-            NanReturnUndefined();
-        }
-    }
+    int64_t offset = args[1].As<Number>()->IntegerValue();
 
-    int64_t offset = args[2].As<Number>()->IntegerValue();
-
-    if (rd_kafka_consume_start_queue(topic, partition, offset, kafka_queue_)) {
+    if (rd_kafka_consume_start_queue(topic_, partition, offset, kafka_queue_)) {
         int kafka_errno = errno;
         NanThrowError(rdk_error_string(kafka_errno).c_str());
         NanReturnUndefined();
     }
 
-    toppars_.push_back(make_pair(topic, partition));
+    partitions_.push_back(partition);
 
     NanReturnUndefined();
 }
@@ -160,29 +162,22 @@ WRAPPED_METHOD(Consumer, StartRecv) {
 WRAPPED_METHOD(Consumer, StopRecv) {
     NanScope();
 
-    if (args.Length() != 2 ||
-        !( args[0]->IsString() && args[1]->IsNumber()) ) {
-        NanThrowError("you must supply a topic name and partition");
-        NanReturnUndefined();
-    }
-
-    String::AsciiValue topic_name(args[0]);
-    rd_kafka_topic_t *topic = get_topic(*topic_name);
-    if (!topic) {
-        NanThrowError("not receiving from topic");
+    if (args.Length() != 1 ||
+        !( args[0]->IsNumber()) ) {
+        NanThrowError("you must supply a partition");
         NanReturnUndefined();
     }
 
     uint32_t partition = args[1].As<Number>()->Uint32Value();
 
-    auto iter(find(toppars_.begin(), toppars_.end(), make_pair(topic, partition)));
-    if (iter == toppars_.end()) {
+    auto iter(find(partitions_.begin(), partitions_.end(), partition));
+    if (iter == partitions_.end()) {
         NanThrowError("not receiving for requested topic and partition");
         NanReturnUndefined();
     }
 
-    rd_kafka_consume_stop(topic, partition);
-    toppars_.erase(iter);
+    rd_kafka_consume_stop(topic_, partition);
+    partitions_.erase(iter);
 
     NanReturnUndefined();
 }
