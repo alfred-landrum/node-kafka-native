@@ -40,7 +40,6 @@ Consumer::Init() {
 
     NODE_SET_PROTOTYPE_METHOD(tpl, "start_recv", WRAPPED_METHOD_NAME(StartRecv));
     NODE_SET_PROTOTYPE_METHOD(tpl, "stop_recv", WRAPPED_METHOD_NAME(StopRecv));
-    NODE_SET_PROTOTYPE_METHOD(tpl, "set_offset", WRAPPED_METHOD_NAME(SetOffset));
     NODE_SET_PROTOTYPE_METHOD(tpl, "get_metadata", WRAPPED_METHOD_NAME(GetMetadata));
 
     NanAssignPersistent(constructor, tpl->GetFunction());
@@ -184,32 +183,6 @@ WRAPPED_METHOD(Consumer, StopRecv) {
 
     rd_kafka_consume_stop(topic, partition);
     toppars_.erase(iter);
-
-    NanReturnUndefined();
-}
-
-WRAPPED_METHOD(Consumer, SetOffset) {
-    NanScope();
-
-    if (args.Length() != 3 ||
-        !( args[0]->IsString() && args[1]->IsNumber() && args[2]->IsNumber() )) {
-        NanThrowError("you must supply a topic name, partition, and offset");
-        NanReturnUndefined();
-    }
-
-    String::AsciiValue topic_name(args[0]);
-    rd_kafka_topic_t *topic = get_topic(*topic_name);
-    if (!topic) {
-        NanThrowError("unknown topic");
-        NanReturnUndefined();
-    }
-
-    uint32_t partition = args[1]->Uint32Value();
-    int64_t offset = args[2]->IntegerValue();
-
-    int err = rd_kafka_offset_store(topic, partition, offset);
-    // only possible error from librdkafka is unknown partition
-    assert(err == 0);
 
     NanReturnUndefined();
 }
