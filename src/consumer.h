@@ -6,7 +6,6 @@
 #include "common.h"
 #include "wrapped-method.h"
 #include "buffer-pool.h"
-#include <list>
 
 class Consumer : public Common {
 public:
@@ -33,7 +32,7 @@ private:
 
     static v8::Persistent<v8::Function> constructor;
 
-    std::list<uint32_t> partitions_;
+    std::vector<uint32_t> partitions_;
     std::unique_ptr<NanCallback> recv_callback_;
 
     uv_thread_t consume_thread_;

@@ -134,27 +134,36 @@ WRAPPED_METHOD(Consumer, StartRecv) {
         NanReturnUndefined();
     }
 
-    if (args.Length() != 2 ||
-        !( args[0]->IsNumber() && args[1]->IsNumber()) ) {
-        NanThrowError("you must supply a partition and offset");
+    if (args.Length() != 1 ||
+        !( args[0]->IsObject()) ) {
+        NanThrowError("you must specify partition/offsets");
         NanReturnUndefined();
     }
 
-    uint32_t partition = args[0].As<Number>()->Uint32Value();
-    if (find(partitions_.begin(), partitions_.end(), partition) != partitions_.end()) {
-        NanThrowError("already receiving for requested partition");
-        NanReturnUndefined();
+    vector<pair<uint32_t, int64_t> > offsets;
+    Local<Object> args_offsets = args[0].As<Object>();
+    Local<Array> keys = args_offsets->GetOwnPropertyNames();
+    for (size_t i = 0; i < keys->Length(); i++) {
+        Local<Value> key = keys->Get(i);
+        int32_t partition = key.As<Number>()->Int32Value();
+        int64_t offset = args_offsets->Get(key).As<Number>()->IntegerValue();
+
+        if (offset < 0 || partition < 0) {
+            NanThrowError("invalid partition/offset");
+            NanReturnUndefined();
+        }
+
+        offsets.push_back(make_pair((uint32_t)partition, offset));
     }
 
-    int64_t offset = args[1].As<Number>()->IntegerValue();
-
-    if (rd_kafka_consume_start_queue(topic_, partition, offset, kafka_queue_)) {
-        int kafka_errno = errno;
-        NanThrowError(rdk_error_string(kafka_errno).c_str());
-        NanReturnUndefined();
+    // The only reason rd_kafka_consume_start_queue fails is if
+    // partition or offset are < 0.
+    for (size_t i = 0; i < offsets.size(); ++i) {
+        uint32_t partition = offsets[i].first;
+        int64_t offset = offsets[i].second;
+        partitions_.push_back(partition);
+        rd_kafka_consume_start_queue(topic_, partition, offset, kafka_queue_);
     }
-
-    partitions_.push_back(partition);
 
     NanReturnUndefined();
 }
@@ -162,22 +171,11 @@ WRAPPED_METHOD(Consumer, StartRecv) {
 WRAPPED_METHOD(Consumer, StopRecv) {
     NanScope();
 
-    if (args.Length() != 1 ||
-        !( args[0]->IsNumber()) ) {
-        NanThrowError("you must supply a partition");
-        NanReturnUndefined();
+    for (size_t i = 0; i < partitions_.size(); ++i) {
+       rd_kafka_consume_stop(topic_, partitions_[i]);
     }
 
-    uint32_t partition = args[1].As<Number>()->Uint32Value();
-
-    auto iter(find(partitions_.begin(), partitions_.end(), partition));
-    if (iter == partitions_.end()) {
-        NanThrowError("not receiving for requested topic and partition");
-        NanReturnUndefined();
-    }
-
-    rd_kafka_consume_stop(topic_, partition);
-    partitions_.erase(iter);
+    partitions_.clear();
 
     NanReturnUndefined();
 }
