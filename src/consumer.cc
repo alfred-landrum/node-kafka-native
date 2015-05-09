@@ -129,11 +129,6 @@ Consumer::consumer_init(string *error) {
 WRAPPED_METHOD(Consumer, StartRecv) {
     NanScope();
 
-    if (!recv_callback_) {
-        NanThrowError("you must add a recv callback before start");
-        NanReturnUndefined();
-    }
-
     if (args.Length() != 1 ||
         !( args[0]->IsObject()) ) {
         NanThrowError("you must specify partition/offsets");
@@ -232,10 +227,6 @@ void
 Consumer::kafka_recv(const vector<rd_kafka_message_t*> &vec) {
     // called in v8 thread
     NanScope();
-
-    if (!recv_callback_) {
-        return;
-    }
 
     static PersistentString topic_key("topic");
     static PersistentString partition_key("partition");
