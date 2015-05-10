@@ -143,7 +143,7 @@ public:
 class ConsumerLoop {
 public:
     ConsumerLoop(Consumer *consumer, rd_kafka_queue_t *queue, uint32_t cohort):
-        handle_(nullptr),
+        handle_(),
         consumer_(consumer),
         queue_(queue),
         cohort_(cohort),

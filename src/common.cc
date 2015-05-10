@@ -19,7 +19,7 @@ ke_async_ready(uv_async_t* handle, int status)
 Common::Common(rd_kafka_type_t ktype, v8::Local<v8::Object> &options):
     ktype_(ktype),
     kafka_client_(nullptr),
-    poll_thread_(nullptr),
+    poll_thread_(),
     shutting_(false)
 {
     uv_mutex_init(&ke_queue_lock_);
