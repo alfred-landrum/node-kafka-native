@@ -7,14 +7,17 @@
 #include "wrapped-method.h"
 #include "buffer-pool.h"
 
+class ConsumerLoop;
+
 class Consumer : public Common {
 public:
     static void Init();
     static v8::Local<v8::Object> NewInstance(v8::Local<v8::Value> arg);
     int consumer_init(std::string *error);
 
-    void kafka_consumer();
-    void kafka_recv(const std::vector<rd_kafka_message_t*> &vec);
+    void receive(uint32_t cohort, const std::vector<rd_kafka_message_t*> &vec);
+
+    void looper_stopped(ConsumerLoop *looper);
 
 private:
     explicit Consumer(v8::Local<v8::Object> &options);
@@ -32,12 +35,13 @@ private:
 
     static v8::Persistent<v8::Function> constructor;
 
-    std::vector<std::pair<rd_kafka_topic_t*, uint32_t> > toppars_;
-    std::unique_ptr<NanCallback> recv_callback_;
+    // identifies messages received after same 'start_recv' call
+    uint32_t cohort_;
 
-    uv_thread_t consume_thread_;
-    rd_kafka_queue_t *kafka_queue_;
-    bool shutdown_;
+    rd_kafka_topic_t *topic_;
+    std::vector<uint32_t> partitions_;
+    ConsumerLoop *looper_;
+    std::unique_ptr<NanCallback> recv_callback_;
 
     BufferPool buffer_pool_;
 };

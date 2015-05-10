@@ -6,7 +6,7 @@ using namespace v8;
 v8::Persistent<v8::Function> BufferPool::buffer_constructor_;
 
 BufferPool::BufferPool(const size_t page_size)
-    : page_size_(page_size), buffer_(NULL)
+    : page_size_(page_size), buffer_(nullptr)
 {
 }
 
@@ -23,7 +23,7 @@ BufferPool::allocate(const unsigned char* data, size_t size) {
         buffer_constructor_ = Persistent<Function>::New(val.As<Function>());
     }
 
-    if (buffer_ == NULL || (buf_offset_ + size) > page_size_) {
+    if (buffer_ == nullptr || (buf_offset_ + size) > page_size_) {
         buffer_ = node::Buffer::New(std::max(page_size_, size));
         buf_data_ = node::Buffer::Data(buffer_->handle_);
         buf_offset_ = 0;

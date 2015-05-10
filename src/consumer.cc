@@ -3,6 +3,7 @@
 #include <v8.h>
 #include <errno.h>
 #include <iostream>
+#include <atomic>
 
 #include "persistent-string.h"
 
@@ -11,20 +12,19 @@ using namespace std;
 
 Consumer::Consumer(Local<Object> &options):
     Common(RD_KAFKA_CONSUMER, options),
-    toppars_(),
+    cohort_(0),
+    topic_(nullptr),
+    partitions_(),
+    looper_(nullptr),
     recv_callback_(),
-    kafka_queue_(NULL),
-    shutdown_(false),
     buffer_pool_()
 {
 }
 
 Consumer::~Consumer()
 {
-    if (kafka_queue_) {
-        rd_kafka_queue_destroy(kafka_queue_);
-        kafka_queue_ = NULL;
-    }
+    // rd_kafka_topic_destroy() called in ~Common
+    topic_ = nullptr;
 }
 
 Persistent<Function> Consumer::constructor;
@@ -40,7 +40,6 @@ Consumer::Init() {
 
     NODE_SET_PROTOTYPE_METHOD(tpl, "start_recv", WRAPPED_METHOD_NAME(StartRecv));
     NODE_SET_PROTOTYPE_METHOD(tpl, "stop_recv", WRAPPED_METHOD_NAME(StopRecv));
-    NODE_SET_PROTOTYPE_METHOD(tpl, "set_offset", WRAPPED_METHOD_NAME(SetOffset));
     NODE_SET_PROTOTYPE_METHOD(tpl, "get_metadata", WRAPPED_METHOD_NAME(GetMetadata));
 
     NanAssignPersistent(constructor, tpl->GetFunction());
@@ -83,14 +82,16 @@ NAN_METHOD(Consumer::New) {
     NanReturnValue(args.This());
 }
 
-void
-consumer_trampoline(void *_consumer) {
-    ((Consumer *)_consumer)->kafka_consumer();
-}
-
 int
 Consumer::consumer_init(string *error) {
     NanScope();
+
+    static PersistentString topic_key("topic");
+    Local<String> name = options_->Get(topic_key).As<String>();
+    if (name == NanUndefined()) {
+        *error = "options must contain a topic";
+        return -1;
+    }
 
     static PersistentString recv_cb_key("recv_cb");
     Local<Function> recv_cb_fn = options_->Get(recv_cb_key).As<Function>();
@@ -105,55 +106,156 @@ Consumer::consumer_init(string *error) {
         return err;
     }
 
-    kafka_queue_ = rd_kafka_queue_new(kafka_client_);
-    uv_thread_create(&consume_thread_, consumer_trampoline, this);
+    String::AsciiValue topic_name(name);
+    topic_ = setup_topic(*topic_name, error);
+    if (!topic_) {
+        return -1;
+    }
 
-    Ref();
     return 0;
+}
+
+class RecvEvent : public KafkaEvent {
+public:
+    RecvEvent(Consumer *consumer, uint32_t cohort, vector<rd_kafka_message_t*> &&msgs):
+        KafkaEvent(),
+        consumer_(consumer),
+        cohort_(cohort),
+        msgs_(msgs)
+    {}
+
+    virtual ~RecvEvent() {
+        for (auto &msg : msgs_) {
+            rd_kafka_message_destroy(msg);
+            msg = nullptr;
+        }
+    }
+
+    virtual void v8_cb() {
+        consumer_->receive(cohort_, msgs_);
+    }
+
+    Consumer *consumer_;
+    uint32_t cohort_;
+    vector<rd_kafka_message_t*> msgs_;
+};
+
+class ConsumerLoop {
+public:
+    ConsumerLoop(Consumer *consumer, rd_kafka_queue_t *queue, uint32_t cohort):
+        handle_(nullptr),
+        consumer_(consumer),
+        queue_(queue),
+        cohort_(cohort),
+        shutdown_(false)
+    {}
+
+    void start() {
+        uv_thread_create(&handle_, ConsumerLoop::main, this);
+    }
+
+    void stop() {
+        shutdown_ = true;
+    }
+
+    static void main(void *_loop) {
+        ConsumerLoop *loop = static_cast<ConsumerLoop*>(_loop);
+        loop->run();
+    }
+
+private:
+    void run();
+    uv_thread_t handle_;
+    Consumer *consumer_;
+    rd_kafka_queue_t *queue_;
+    uint32_t cohort_;
+    atomic<bool> shutdown_;
+};
+
+class LooperStopped : public KafkaEvent {
+public:
+    LooperStopped(Consumer *consumer, ConsumerLoop *looper):
+        KafkaEvent(),
+        consumer_(consumer),
+        looper_(looper)
+    {}
+
+    virtual ~LooperStopped() { }
+
+    virtual void v8_cb() {
+        consumer_->looper_stopped(looper_);
+    }
+
+    Consumer *consumer_;
+    ConsumerLoop *looper_;
+};
+
+void
+ConsumerLoop::run()
+{
+    vector<rd_kafka_message_t*> vec;
+
+    while (!shutdown_) {
+        const int max_size = 10000;
+        const int timeout_ms = 500;
+        vec.resize(max_size);
+        int cnt = rd_kafka_consume_batch_queue(queue_, timeout_ms, &vec[0], max_size);
+        if (cnt > 0) {
+            // Note that some messages may be errors, eg: RD_KAFKA_RESP_ERR__PARTITION_EOF
+            vec.resize(cnt);
+            consumer_->ke_push(unique_ptr<KafkaEvent>(new RecvEvent(consumer_, cohort_, move(vec))));
+        }
+    }
+
+    rd_kafka_queue_destroy(queue_);
+
+    consumer_->ke_push(unique_ptr<KafkaEvent>(new LooperStopped(consumer_, this)));
 }
 
 WRAPPED_METHOD(Consumer, StartRecv) {
     NanScope();
 
-    if (!recv_callback_) {
-        NanThrowError("you must add a recv callback before start");
+    if (looper_) {
+        NanThrowError("consumer already started");
         NanReturnUndefined();
     }
 
-    if (args.Length() != 3 ||
-        !( args[0]->IsString() && args[1]->IsNumber() && args[2]->IsNumber()) ) {
-        NanThrowError("you must supply a topic name, partition, and offset");
+    if (args.Length() != 1 ||
+        !( args[0]->IsObject()) ) {
+        NanThrowError("you must specify partition/offsets");
         NanReturnUndefined();
     }
 
-    String::AsciiValue topic_name(args[0]);
-    rd_kafka_topic_t *topic = get_topic(*topic_name);
-    if (!topic) {
-        string error;
-        topic = setup_topic(*topic_name, &error);
-        if (!topic) {
-            NanThrowError(error.c_str());
+    vector<pair<uint32_t, int64_t> > offsets;
+    Local<Object> args_offsets = args[0].As<Object>();
+    Local<Array> keys = args_offsets->GetOwnPropertyNames();
+    for (size_t i = 0; i < keys->Length(); i++) {
+        Local<Value> key = keys->Get(i);
+        int32_t partition = key.As<Number>()->Int32Value();
+        int64_t offset = args_offsets->Get(key).As<Number>()->IntegerValue();
+
+        if (offset < 0 || partition < 0) {
+            NanThrowError("invalid partition/offset");
             NanReturnUndefined();
         }
+
+        offsets.push_back(make_pair((uint32_t)partition, offset));
     }
 
-    uint32_t partition = args[1].As<Number>()->Uint32Value();
-    for (auto &i : toppars_) {
-        if (i.first == topic && i.second == partition) {
-            NanThrowError("already receiving for requested topic and partition");
-            NanReturnUndefined();
-        }
+    auto queue = rd_kafka_queue_new(kafka_client_);
+    looper_ = new ConsumerLoop(this, queue, cohort_);
+
+    // The only reason rd_kafka_consume_start_queue fails is if
+    // partition or offset are < 0.
+    for (size_t i = 0; i < offsets.size(); ++i) {
+        uint32_t partition = offsets[i].first;
+        int64_t offset = offsets[i].second;
+        partitions_.push_back(partition);
+        rd_kafka_consume_start_queue(topic_, partition, offset, queue);
     }
 
-    int64_t offset = args[2].As<Number>()->IntegerValue();
-
-    if (rd_kafka_consume_start_queue(topic, partition, offset, kafka_queue_)) {
-        int kafka_errno = errno;
-        NanThrowError(rdk_error_string(kafka_errno).c_str());
-        NanReturnUndefined();
-    }
-
-    toppars_.push_back(make_pair(topic, partition));
+    Ref();
+    looper_->start();
 
     NanReturnUndefined();
 }
@@ -161,57 +263,32 @@ WRAPPED_METHOD(Consumer, StartRecv) {
 WRAPPED_METHOD(Consumer, StopRecv) {
     NanScope();
 
-    if (args.Length() != 2 ||
-        !( args[0]->IsString() && args[1]->IsNumber()) ) {
-        NanThrowError("you must supply a topic name and partition");
+    if (!looper_) {
+        NanThrowError("consumer not started");
         NanReturnUndefined();
     }
 
-    String::AsciiValue topic_name(args[0]);
-    rd_kafka_topic_t *topic = get_topic(*topic_name);
-    if (!topic) {
-        NanThrowError("not receiving from topic");
-        NanReturnUndefined();
+    // Dont send any further messages up from now until
+    // the user calls start again.
+    cohort_++;
+
+    for (size_t i = 0; i < partitions_.size(); ++i) {
+        rd_kafka_consume_stop(topic_, partitions_[i]);
     }
 
-    uint32_t partition = args[1].As<Number>()->Uint32Value();
+    partitions_.clear();
 
-    auto iter(find(toppars_.begin(), toppars_.end(), make_pair(topic, partition)));
-    if (iter == toppars_.end()) {
-        NanThrowError("not receiving for requested topic and partition");
-        NanReturnUndefined();
-    }
-
-    rd_kafka_consume_stop(topic, partition);
-    toppars_.erase(iter);
+    looper_->stop();
+    looper_ = nullptr;
 
     NanReturnUndefined();
 }
 
-WRAPPED_METHOD(Consumer, SetOffset) {
-    NanScope();
-
-    if (args.Length() != 3 ||
-        !( args[0]->IsString() && args[1]->IsNumber() && args[2]->IsNumber() )) {
-        NanThrowError("you must supply a topic name, partition, and offset");
-        NanReturnUndefined();
-    }
-
-    String::AsciiValue topic_name(args[0]);
-    rd_kafka_topic_t *topic = get_topic(*topic_name);
-    if (!topic) {
-        NanThrowError("unknown topic");
-        NanReturnUndefined();
-    }
-
-    uint32_t partition = args[1]->Uint32Value();
-    int64_t offset = args[2]->IntegerValue();
-
-    int err = rd_kafka_offset_store(topic, partition, offset);
-    // only possible error from librdkafka is unknown partition
-    assert(err == 0);
-
-    NanReturnUndefined();
+void
+Consumer::looper_stopped(ConsumerLoop *looper) {
+    // TODO: dec a looper count on consumer for graceful shutdown
+    Unref();
+    delete looper;
 }
 
 WRAPPED_METHOD(Consumer, GetMetadata) {
@@ -220,54 +297,14 @@ WRAPPED_METHOD(Consumer, GetMetadata) {
     NanReturnUndefined();
 }
 
-class RecvEvent : public KafkaEvent {
-public:
-    RecvEvent(Consumer *consumer, vector<rd_kafka_message_t*> &&msgs):
-        KafkaEvent(),
-        consumer_(consumer),
-        msgs_(msgs)
-    {}
-
-    virtual ~RecvEvent() {
-        for (auto &msg : msgs_) {
-            rd_kafka_message_destroy(msg);
-            msg = NULL;
-        }
-    }
-
-    virtual void v8_cb() {
-        consumer_->kafka_recv(msgs_);
-    }
-
-    Consumer *consumer_;
-    vector<rd_kafka_message_t*> msgs_;
-};
-
-// why use rd_kafka_consume_batch instead of rd_kafka_consume_callback?
-// because batch gives us ownership of the rkmessages
 void
-Consumer::kafka_consumer() {
-    vector<rd_kafka_message_t*> vec;
-
-    while (!shutdown_) {
-        const int max_size = 10000;
-        const int timeout_ms = 500;
-        vec.resize(max_size);
-        int cnt = rd_kafka_consume_batch_queue(kafka_queue_, timeout_ms, &vec[0], max_size);
-        if (cnt > 0) {
-            // Note that some messages may be errors, eg: RD_KAFKA_RESP_ERR__PARTITION_EOF
-            vec.resize(cnt);
-            ke_push(unique_ptr<KafkaEvent>(new RecvEvent(this, move(vec))));
-        }
-    }
-}
-
-void
-Consumer::kafka_recv(const vector<rd_kafka_message_t*> &vec) {
+Consumer::receive(uint32_t cohort, const vector<rd_kafka_message_t*> &vec) {
     // called in v8 thread
     NanScope();
 
-    if (!recv_callback_) {
+    if (cohort != cohort_) {
+        // This message came in after a stop_recv was issued, but before
+        // the consumer thread was shutdown; dont deliver these messages.
         return;
     }
 
