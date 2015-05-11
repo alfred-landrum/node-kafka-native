@@ -1,6 +1,6 @@
 {
   "name": "jut-node-kafka",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "description": "node.js Kafka client",
   "repository": {
     "type": "git",
