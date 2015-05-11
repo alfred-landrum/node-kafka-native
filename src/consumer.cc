@@ -3,7 +3,6 @@
 #include <v8.h>
 #include <errno.h>
 #include <iostream>
-#include <atomic>
 
 #include "persistent-string.h"
 
@@ -12,10 +11,11 @@ using namespace std;
 
 Consumer::Consumer(Local<Object> &options):
     Common(RD_KAFKA_CONSUMER, options),
-    cohort_(0),
     topic_(nullptr),
     partitions_(),
     looper_(nullptr),
+    queue_(nullptr),
+    paused_(false),
     recv_callback_(),
     buffer_pool_()
 {
@@ -23,6 +23,11 @@ Consumer::Consumer(Local<Object> &options):
 
 Consumer::~Consumer()
 {
+    if (queue_) {
+        rd_kafka_queue_destroy(queue_);
+        queue_ = nullptr;
+    }
+
     // rd_kafka_topic_destroy() called in ~Common
     topic_ = nullptr;
 }
@@ -38,8 +43,10 @@ Consumer::Init() {
     tpl->SetClassName(NanNew("Consumer"));
     tpl->InstanceTemplate()->SetInternalFieldCount(1);
 
-    NODE_SET_PROTOTYPE_METHOD(tpl, "start_recv", WRAPPED_METHOD_NAME(StartRecv));
-    NODE_SET_PROTOTYPE_METHOD(tpl, "stop_recv", WRAPPED_METHOD_NAME(StopRecv));
+    NODE_SET_PROTOTYPE_METHOD(tpl, "start", WRAPPED_METHOD_NAME(Start));
+    NODE_SET_PROTOTYPE_METHOD(tpl, "stop", WRAPPED_METHOD_NAME(Stop));
+    NODE_SET_PROTOTYPE_METHOD(tpl, "pause", WRAPPED_METHOD_NAME(Pause));
+    NODE_SET_PROTOTYPE_METHOD(tpl, "resume", WRAPPED_METHOD_NAME(Resume));
     NODE_SET_PROTOTYPE_METHOD(tpl, "get_metadata", WRAPPED_METHOD_NAME(GetMetadata));
 
     NanAssignPersistent(constructor, tpl->GetFunction());
@@ -112,15 +119,80 @@ Consumer::consumer_init(string *error) {
         return -1;
     }
 
+    queue_ = rd_kafka_queue_new(kafka_client_);
+
     return 0;
 }
 
+class ConsumerLoop {
+public:
+    ConsumerLoop(Consumer *consumer, rd_kafka_queue_t *queue):
+        handle_(),
+        consumer_(consumer),
+        queue_(queue),
+        paused_(false),
+        shutdown_(false)
+    {
+        uv_cond_init(&cond_);
+        uv_mutex_init(&mutex_);
+    }
+
+    ~ConsumerLoop()
+    {
+        uv_cond_destroy(&cond_);
+        uv_mutex_destroy(&mutex_);
+    }
+
+    void start() {
+        uv_thread_create(&handle_, ConsumerLoop::main, this);
+    }
+
+    void pause() {
+        uv_mutex_lock(&mutex_);
+        paused_ = true;
+        uv_mutex_unlock(&mutex_);
+    }
+
+    void resume() {
+        uv_mutex_lock(&mutex_);
+        paused_ = false;
+        uv_cond_signal(&cond_);
+        uv_mutex_unlock(&mutex_);
+    }
+
+    void stop() {
+        uv_mutex_lock(&mutex_);
+        shutdown_ = true;
+        uv_cond_signal(&cond_);
+        uv_mutex_unlock(&mutex_);
+    }
+
+    bool stopping() { return shutdown_; }
+
+    static void main(void *_loop) {
+        ConsumerLoop *loop = static_cast<ConsumerLoop*>(_loop);
+        loop->run();
+    }
+
+private:
+    bool should_continue();
+    void run();
+
+    uv_thread_t handle_;
+    uv_cond_t cond_;
+    uv_mutex_t mutex_;
+    Consumer *consumer_;
+    rd_kafka_queue_t *queue_;
+    bool paused_;
+    bool shutdown_;
+};
+
 class RecvEvent : public KafkaEvent {
 public:
-    RecvEvent(Consumer *consumer, uint32_t cohort, vector<rd_kafka_message_t*> &&msgs):
+    RecvEvent(Consumer *consumer, ConsumerLoop *looper, vector<rd_kafka_message_t*> &&msgs):
         KafkaEvent(),
         consumer_(consumer),
-        cohort_(cohort),
+        looper_(looper),
         msgs_(msgs)
     {}
 
@@ -132,44 +204,12 @@ public:
     }
 
     virtual void v8_cb() {
-        consumer_->receive(cohort_, msgs_);
+        consumer_->receive(looper_, msgs_);
     }
 
     Consumer *consumer_;
-    uint32_t cohort_;
+    ConsumerLoop *looper_;
     vector<rd_kafka_message_t*> msgs_;
-};
-
-class ConsumerLoop {
-public:
-    ConsumerLoop(Consumer *consumer, rd_kafka_queue_t *queue, uint32_t cohort):
-        handle_(),
-        consumer_(consumer),
-        queue_(queue),
-        cohort_(cohort),
-        shutdown_(false)
-    {}
-
-    void start() {
-        uv_thread_create(&handle_, ConsumerLoop::main, this);
-    }
-
-    void stop() {
-        shutdown_ = true;
-    }
-
-    static void main(void *_loop) {
-        ConsumerLoop *loop = static_cast<ConsumerLoop*>(_loop);
-        loop->run();
-    }
-
-private:
-    void run();
-    uv_thread_t handle_;
-    Consumer *consumer_;
-    rd_kafka_queue_t *queue_;
-    uint32_t cohort_;
-    atomic<bool> shutdown_;
 };
 
 class LooperStopped : public KafkaEvent {
@@ -190,12 +230,33 @@ public:
     ConsumerLoop *looper_;
 };
 
+bool
+ConsumerLoop::should_continue()
+{
+    uv_mutex_lock(&mutex_);
+    if (shutdown_) {
+        uv_mutex_unlock(&mutex_);
+        return false;
+    }
+
+    while (paused_) {
+        uv_cond_wait(&cond_, &mutex_);
+        if (shutdown_) {
+            uv_mutex_unlock(&mutex_);
+            return false;
+        }
+    }
+
+    uv_mutex_unlock(&mutex_);
+    return true;
+}
+
 void
 ConsumerLoop::run()
 {
     vector<rd_kafka_message_t*> vec;
 
-    while (!shutdown_) {
+    while (should_continue()) {
         const int max_size = 10000;
         const int timeout_ms = 500;
         vec.resize(max_size);
@@ -203,16 +264,16 @@ ConsumerLoop::run()
         if (cnt > 0) {
             // Note that some messages may be errors, eg: RD_KAFKA_RESP_ERR__PARTITION_EOF
             vec.resize(cnt);
-            consumer_->ke_push(unique_ptr<KafkaEvent>(new RecvEvent(consumer_, cohort_, move(vec))));
+
+            pause();
+            consumer_->ke_push(unique_ptr<KafkaEvent>(new RecvEvent(consumer_, this, move(vec))));
         }
     }
-
-    rd_kafka_queue_destroy(queue_);
 
     consumer_->ke_push(unique_ptr<KafkaEvent>(new LooperStopped(consumer_, this)));
 }
 
-WRAPPED_METHOD(Consumer, StartRecv) {
+WRAPPED_METHOD(Consumer, Start) {
     NanScope();
 
     if (looper_) {
@@ -226,41 +287,27 @@ WRAPPED_METHOD(Consumer, StartRecv) {
         NanReturnUndefined();
     }
 
-    vector<pair<uint32_t, int64_t> > offsets;
-    Local<Object> args_offsets = args[0].As<Object>();
-    Local<Array> keys = args_offsets->GetOwnPropertyNames();
+    Local<Object> offsets = args[0].As<Object>();
+    Local<Array> keys = offsets->GetOwnPropertyNames();
     for (size_t i = 0; i < keys->Length(); i++) {
         Local<Value> key = keys->Get(i);
-        int32_t partition = key.As<Number>()->Int32Value();
-        int64_t offset = args_offsets->Get(key).As<Number>()->IntegerValue();
+        uint32_t partition = key.As<Number>()->Uint32Value();
+        int64_t offset = offsets->Get(key).As<Number>()->IntegerValue();
 
-        if (offset < 0 || partition < 0) {
-            NanThrowError("invalid partition/offset");
-            NanReturnUndefined();
-        }
-
-        offsets.push_back(make_pair((uint32_t)partition, offset));
-    }
-
-    auto queue = rd_kafka_queue_new(kafka_client_);
-    looper_ = new ConsumerLoop(this, queue, cohort_);
-
-    // The only reason rd_kafka_consume_start_queue fails is if
-    // partition or offset are < 0.
-    for (size_t i = 0; i < offsets.size(); ++i) {
-        uint32_t partition = offsets[i].first;
-        int64_t offset = offsets[i].second;
         partitions_.push_back(partition);
-        rd_kafka_consume_start_queue(topic_, partition, offset, queue);
+        rd_kafka_consume_start_queue(topic_, partition, offset, queue_);
     }
 
     Ref();
+
+    paused_ = false;
+    looper_ = new ConsumerLoop(this, queue_);
     looper_->start();
 
     NanReturnUndefined();
 }
 
-WRAPPED_METHOD(Consumer, StopRecv) {
+WRAPPED_METHOD(Consumer, Stop) {
     NanScope();
 
     if (!looper_) {
@@ -268,18 +315,43 @@ WRAPPED_METHOD(Consumer, StopRecv) {
         NanReturnUndefined();
     }
 
-    // Dont send any further messages up from now until
-    // the user calls start again.
-    cohort_++;
-
     for (size_t i = 0; i < partitions_.size(); ++i) {
         rd_kafka_consume_stop(topic_, partitions_[i]);
     }
 
     partitions_.clear();
 
+    paused_ = true;
     looper_->stop();
     looper_ = nullptr;
+
+    NanReturnUndefined();
+}
+
+WRAPPED_METHOD(Consumer, Pause) {
+    NanScope();
+
+    if (!looper_) {
+        NanThrowError("consumer not started");
+        NanReturnUndefined();
+    }
+
+    paused_ = true;
+    looper_->pause();
+
+    NanReturnUndefined();
+}
+
+WRAPPED_METHOD(Consumer, Resume) {
+    NanScope();
+
+    if (!looper_) {
+        NanThrowError("consumer not started");
+        NanReturnUndefined();
+    }
+
+    paused_ = false;
+    looper_->resume();
 
     NanReturnUndefined();
 }
@@ -298,13 +370,16 @@ WRAPPED_METHOD(Consumer, GetMetadata) {
 }
 
 void
-Consumer::receive(uint32_t cohort, const vector<rd_kafka_message_t*> &vec) {
+Consumer::receive(ConsumerLoop *looper, const vector<rd_kafka_message_t*> &vec) {
     // called in v8 thread
     NanScope();
 
-    if (cohort != cohort_) {
+    if (looper->stopping()) {
         // This message came in after a stop_recv was issued, but before
         // the consumer thread was shutdown; dont deliver these messages.
+        // Intentionally not checking _paused here, as doing so would cause
+        // us to miss messages if Pause is called outside of the recv_callback
+        // call.
         return;
     }
 
@@ -355,5 +430,9 @@ Consumer::receive(uint32_t cohort, const vector<rd_kafka_message_t*> &vec) {
     if (msg_idx > -1 || err_idx > -1) {
         Local<Value> argv[] = { messages, errors };
         recv_callback_->Call(2, argv);
+    }
+
+    if (!paused_) {
+        looper_->resume();
     }
 }
