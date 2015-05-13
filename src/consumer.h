@@ -5,7 +5,6 @@
 #include <utility>
 #include "common.h"
 #include "wrapped-method.h"
-#include "buffer-pool.h"
 
 class ConsumerLoop;
 
@@ -43,6 +42,4 @@ private:
     rd_kafka_queue_t *queue_;
     bool paused_;
     std::unique_ptr<NanCallback> recv_callback_;
-
-    BufferPool buffer_pool_;
 };

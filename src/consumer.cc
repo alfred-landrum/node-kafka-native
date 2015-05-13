@@ -16,8 +16,7 @@ Consumer::Consumer(Local<Object> &options):
     looper_(nullptr),
     queue_(nullptr),
     paused_(false),
-    recv_callback_(),
-    buffer_pool_()
+    recv_callback_()
 {
 }
 
@@ -393,7 +392,6 @@ Consumer::receive(ConsumerLoop *looper, const vector<rd_kafka_message_t*> &vec) 
     int msg_idx = -1;
     int err_idx = -1;
 
-    const bool recv_as_strings = true;
     Local<Array> messages = NanNew<Array>();
     Local<Array> errors = NanNew<Array>();
     for (auto msg : vec) {
@@ -409,20 +407,11 @@ Consumer::receive(ConsumerLoop *looper, const vector<rd_kafka_message_t*> &vec) 
             continue;
         }
 
-        if (recv_as_strings) {
-            if (msg->key_len) {
-                obj->Set(key_key.handle(), NanNew<String>((char*)msg->key, msg->key_len));
-            }
-            if (msg->len) {
-                obj->Set(payload_key.handle(), NanNew<String>((char*)msg->payload, msg->len));
-            }
-        } else {
-            if (msg->key_len) {
-                obj->Set(key_key.handle(), buffer_pool_.allocate((const unsigned char *)msg->key, msg->key_len));
-            }
-            if (msg->len) {
-                obj->Set(payload_key.handle(), buffer_pool_.allocate((const unsigned char *)msg->payload, msg->len));
-            }
+        if (msg->key_len) {
+            obj->Set(key_key.handle(), NanNew<String>((char*)msg->key, msg->key_len));
+        }
+        if (msg->len) {
+            obj->Set(payload_key.handle(), NanNew<String>((char*)msg->payload, msg->len));
         }
         messages->Set(++msg_idx, obj);
     }
