@@ -16,7 +16,8 @@ Consumer::Consumer(Local<Object> &options):
     looper_(nullptr),
     queue_(nullptr),
     paused_(false),
-    recv_callback_()
+    recv_callback_(),
+    max_messages_per_callback_(10000)
 {
 }
 
@@ -106,6 +107,12 @@ Consumer::consumer_init(string *error) {
         return -1;
     }
     recv_callback_.reset(new NanCallback(recv_cb_fn));
+
+    static PersistentString max_message_key("max_messages_per_callback");
+    Local<Number> max_messages_obj = options_->Get(max_message_key).As<Number>();
+    if (max_messages_obj != NanUndefined()) {
+        this->max_messages_per_callback_ = max_messages_obj->Uint32Value();
+    }
 
     int err = common_init(error);
     if (err) {
@@ -256,7 +263,7 @@ ConsumerLoop::run()
     vector<rd_kafka_message_t*> vec;
 
     while (should_continue()) {
-        const int max_size = 10000;
+        const uint32_t max_size = consumer_->max_messages_per_callback();
         const int timeout_ms = 500;
         vec.resize(max_size);
         int cnt = rd_kafka_consume_batch_queue(queue_, timeout_ms, &vec[0], max_size);
