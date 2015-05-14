@@ -26,7 +26,6 @@ private:
 
     static NAN_METHOD(New);
 
-    WRAPPED_METHOD_DECL(SetRecvCallback);
     WRAPPED_METHOD_DECL(Start);
     WRAPPED_METHOD_DECL(Stop);
     WRAPPED_METHOD_DECL(Pause);
