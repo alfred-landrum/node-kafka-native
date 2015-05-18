@@ -5,7 +5,6 @@
 #include <utility>
 #include "common.h"
 #include "wrapped-method.h"
-#include "buffer-pool.h"
 
 class ConsumerLoop;
 
@@ -16,8 +15,9 @@ public:
     int consumer_init(std::string *error);
 
     void receive(ConsumerLoop *looper, const std::vector<rd_kafka_message_t*> &vec);
-
     void looper_stopped(ConsumerLoop *looper);
+
+    uint32_t max_messages_per_callback() { return max_messages_per_callback_; }
 
 private:
     explicit Consumer(v8::Local<v8::Object> &options);
@@ -27,7 +27,6 @@ private:
 
     static NAN_METHOD(New);
 
-    WRAPPED_METHOD_DECL(SetRecvCallback);
     WRAPPED_METHOD_DECL(Start);
     WRAPPED_METHOD_DECL(Stop);
     WRAPPED_METHOD_DECL(Pause);
@@ -43,6 +42,5 @@ private:
     rd_kafka_queue_t *queue_;
     bool paused_;
     std::unique_ptr<NanCallback> recv_callback_;
-
-    BufferPool buffer_pool_;
+    uint32_t max_messages_per_callback_;
 };

@@ -4,7 +4,6 @@
       "target_name": "jut-node-kafka",
       "sources": [
         "src/jut-node-kafka.cc",
-        "src/buffer-pool.cc",
         "src/common.cc",
         "src/producer.cc",
         "src/consumer.cc"

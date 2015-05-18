@@ -17,7 +17,7 @@ Consumer::Consumer(Local<Object> &options):
     queue_(nullptr),
     paused_(false),
     recv_callback_(),
-    buffer_pool_()
+    max_messages_per_callback_(10000)
 {
 }
 
@@ -107,6 +107,12 @@ Consumer::consumer_init(string *error) {
         return -1;
     }
     recv_callback_.reset(new NanCallback(recv_cb_fn));
+
+    static PersistentString max_message_key("max_messages_per_callback");
+    Local<Number> max_messages_obj = options_->Get(max_message_key).As<Number>();
+    if (max_messages_obj != NanUndefined()) {
+        this->max_messages_per_callback_ = max_messages_obj->Uint32Value();
+    }
 
     int err = common_init(error);
     if (err) {
@@ -257,7 +263,7 @@ ConsumerLoop::run()
     vector<rd_kafka_message_t*> vec;
 
     while (should_continue()) {
-        const int max_size = 10000;
+        const uint32_t max_size = consumer_->max_messages_per_callback();
         const int timeout_ms = 500;
         vec.resize(max_size);
         int cnt = rd_kafka_consume_batch_queue(queue_, timeout_ms, &vec[0], max_size);
@@ -393,7 +399,6 @@ Consumer::receive(ConsumerLoop *looper, const vector<rd_kafka_message_t*> &vec) 
     int msg_idx = -1;
     int err_idx = -1;
 
-    const bool recv_as_strings = true;
     Local<Array> messages = NanNew<Array>();
     Local<Array> errors = NanNew<Array>();
     for (auto msg : vec) {
@@ -409,20 +414,11 @@ Consumer::receive(ConsumerLoop *looper, const vector<rd_kafka_message_t*> &vec) 
             continue;
         }
 
-        if (recv_as_strings) {
-            if (msg->key_len) {
-                obj->Set(key_key.handle(), NanNew<String>((char*)msg->key, msg->key_len));
-            }
-            if (msg->len) {
-                obj->Set(payload_key.handle(), NanNew<String>((char*)msg->payload, msg->len));
-            }
-        } else {
-            if (msg->key_len) {
-                obj->Set(key_key.handle(), buffer_pool_.allocate((const unsigned char *)msg->key, msg->key_len));
-            }
-            if (msg->len) {
-                obj->Set(payload_key.handle(), buffer_pool_.allocate((const unsigned char *)msg->payload, msg->len));
-            }
+        if (msg->key_len) {
+            obj->Set(key_key.handle(), NanNew<String>((char*)msg->key, msg->key_len));
+        }
+        if (msg->len) {
+            obj->Set(payload_key.handle(), NanNew<String>((char*)msg->payload, msg->len));
         }
         messages->Set(++msg_idx, obj);
     }
