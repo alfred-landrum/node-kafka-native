@@ -249,6 +249,9 @@ Common::setup_topic(const char *name, string *error) {
         for (size_t i = 0; i < keys->Length(); i++) {
             Local<Value> key = keys->Get(i);
             Local<Value> val = topic_options->Get(key);
+            if (val == NanUndefined()) {
+                continue;
+            }
             if (rd_kafka_topic_conf_set(conf, *NanAsciiString(key), *NanAsciiString(val),
                                         errstr, errsize) != RD_KAFKA_CONF_OK) {
                 *error = string(errstr);
@@ -326,6 +329,9 @@ Common::common_init(string *error) {
         for (size_t i = 0; i < keys->Length(); i++) {
             Local<Value> key = keys->Get(i);
             Local<Value> val = driver_options->Get(key);
+            if (val == NanUndefined()) {
+                continue;
+            }
             if (rd_kafka_conf_set(conf, *NanAsciiString(key), *NanAsciiString(val),
                                     errstr, errsize) != RD_KAFKA_CONF_OK) {
                 *error = string(errstr);
