@@ -111,12 +111,12 @@ WRAPPED_METHOD(Producer, Send) {
         rd_kafka_message_t *msg = &messages[i];
         const Local<String>& str(msg_array->Get(i).As<String>());
 
-        int length = str->Length();
+        int length = str->Utf8Length();
         msg->len = length;
         // malloc here to match the F_FREE flag below
         msg->payload = malloc(length);
-        // WriteAscii in v8/src/api.cc
-        str->WriteAscii((char*)msg->payload, /*start*/0, length, /*flags*/0);
+        // WriteUtf8 in v8/src/api.cc
+        str->WriteUtf8((char*)msg->payload, length, nullptr, 0);
     }
 
     uint32_t sent = rd_kafka_produce_batch(

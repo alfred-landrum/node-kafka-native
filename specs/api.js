@@ -222,4 +222,56 @@ describe('api tests', function() {
         });
     });
 
+    it('should allow utf8 messages through', function() {
+        var topic_name = gen_topic_name();
+        var teststr = "私はガラスを.食べられ.ます。それは私.を傷つ.けません";
+        var received_messages = {};
+
+        var recv_cb = function(messages) {
+            _.each(messages, function(kmsg) {
+                if (received_messages[kmsg.partition] === undefined) {
+                    received_messages[kmsg.partition] = [];
+                }
+                received_messages[kmsg.partition].push(kmsg);
+            });
+        };
+
+        var producer, consumer, num_partitions;
+        return create_pair(topic_name, recv_cb)
+        .then(function(res) {
+            producer = res.producer;
+            consumer = res.consumer;
+            num_partitions = res.num_partitions;
+
+            return Promise.each(_.range(num_partitions), function(partition) {
+                producer.send(topic_name, partition, [teststr]);
+            });
+        })
+        .then(function() {
+            var partitions = {};
+            _.each(_.range(num_partitions), function(p) { partitions[p] = 0; });
+
+            consumer.start(partitions)
+
+            return retry(function(cancel) {
+                expect(_.keys(received_messages).length).equals(num_partitions);
+                _.each(_.range(num_partitions), function(partition) {
+                    var msgs = received_messages[partition];
+                    expect(msgs).to.exist();
+                    expect(msgs.length).equals(1);
+                    var msg = msgs[0];
+                    expect(msg.payload).equals(teststr);
+                    expect(msg.partition).equals(Number(partition));
+                    expect(msg.offset).equals(0);
+                    expect(msg.topic).equals(topic_name);
+                    expect(msg.key).not.exist();
+                });
+            });
+        })
+        .then(function() {
+            consumer.stop();
+        });
+    });
+
+
 });
