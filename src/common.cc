@@ -167,7 +167,7 @@ public:
     virtual void v8_cb() {
         NanScope();
         if (common_->stat_event_callback_) {
-            Local<Value> argv[] = { NanNew<String>(stats_).As<Object>() };
+            Local<Value> argv[] = { NanNew<String>(stats_) };
             common_->stat_event_callback_->Call(1, argv);
         }
     }
