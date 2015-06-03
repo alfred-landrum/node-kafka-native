@@ -3635,7 +3635,7 @@ static void rd_kafka_toppar_offset_reply (rd_kafka_broker_t *rkb,
 
 	if (unlikely(err)) {
 		int data_path_request = 0;
-		if ((request->rkbuf_hndcb == (void *)rd_kafka_toppar_next_offset_handle))
+		if (request->rkbuf_hndcb == (void *)rd_kafka_toppar_next_offset_handle) {
 			data_path_request = 1;
 		}
 
