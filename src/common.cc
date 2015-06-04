@@ -10,7 +10,11 @@ using namespace std;
 using namespace v8;
 
 void
+#if UV_VERSION_MAJOR == 0
 ke_async_ready(uv_async_t* handle, int status)
+#else
+ke_async_ready(uv_async_t* handle)
+#endif
 {
     Common* common = (Common*)handle->data;
     common->ke_check();
@@ -243,7 +247,7 @@ Common::setup_topic(const char *name, string *error) {
     char errstr[errsize];
 
     static PersistentString topic_options_key("topic_options");
-    Local<Object> topic_options = options_->Get(topic_options_key).As<Object>();
+    Local<Object> topic_options = NanNew(options_)->Get(topic_options_key).As<Object>();
     if (topic_options != NanUndefined()) {
         Local<Array> keys = topic_options->GetOwnPropertyNames();
         for (size_t i = 0; i < keys->Length(); i++) {
@@ -292,23 +296,26 @@ Common::common_init(string *error) {
     rd_kafka_conf_t *conf = rd_kafka_conf_new();
     rd_kafka_conf_set_opaque(conf, this);
 
+    // Convert persistent options to local for >node 0.12 compatibility
+    Local<Object> options = NanNew(options_);
+
     // callbacks
     static PersistentString stat_cb_key("stat_cb");
-    Local<Function> stat_cb_fn = options_->Get(stat_cb_key).As<Function>();
+    Local<Function> stat_cb_fn = options->Get(stat_cb_key).As<Function>();
     if (stat_cb_fn != NanUndefined()) {
         rd_kafka_conf_set_stats_cb(conf, StatEvent::kafka_cb);
         stat_event_callback_.reset(new NanCallback(stat_cb_fn));
     }
 
     static PersistentString error_cb_key("error_cb");
-    Local<Function> error_cb_fn = options_->Get(error_cb_key).As<Function>();
+    Local<Function> error_cb_fn = options->Get(error_cb_key).As<Function>();
     if (error_cb_fn != NanUndefined()) {
         rd_kafka_conf_set_error_cb(conf, ErrorEvent::kafka_cb);
         error_event_callback_.reset(new NanCallback(error_cb_fn));
     }
 
     static PersistentString log_cb_key("log_cb");
-    Local<Function> log_cb_fn = options_->Get(log_cb_key).As<Function>();
+    Local<Function> log_cb_fn = options->Get(log_cb_key).As<Function>();
     if (log_cb_fn != NanUndefined()) {
         rd_kafka_conf_set_log_cb(conf, LogEvent::kafka_cb);
         log_event_callback_.reset(new NanCallback(log_cb_fn));
@@ -323,7 +330,7 @@ Common::common_init(string *error) {
     // rd_kafka_conf_set(conf, "debug", "topic", errstr, sizeof(errstr));
 
     static PersistentString driver_options_key("driver_options");
-    Local<Object> driver_options = options_->Get(driver_options_key).As<Object>();
+    Local<Object> driver_options = options->Get(driver_options_key).As<Object>();
     if (driver_options != NanUndefined()) {
         Local<Array> keys = driver_options->GetOwnPropertyNames();
         for (size_t i = 0; i < keys->Length(); i++) {
@@ -492,7 +499,7 @@ NAN_METHOD(Common::get_metadata)
         NanReturnUndefined();
     }
 
-    String::AsciiValue topic_name(args[0]);
+    String::Utf8Value topic_name(args[0]);
     rd_kafka_topic_t *topic = get_topic(*topic_name);
     if (!topic) {
         string error;
