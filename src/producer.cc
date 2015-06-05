@@ -4,6 +4,8 @@
 #include <errno.h>
 #include <iostream>
 
+#include "persistent-string.h"
+
 using namespace v8;
 using namespace std;
 
@@ -137,7 +139,14 @@ WRAPPED_METHOD(Producer, Send) {
         }
     }
 
-    NanReturnValue(NanNew<Number>(sent));
+    Local<Object> ret(NanNew<Object>());
+    static PersistentString queue_length_key("queue_length");
+    static PersistentString queued_key("queued");
+
+    ret->Set(queue_length_key.handle(), NanNew<Number>(rd_kafka_outq_len(kafka_client_)));
+    ret->Set(queued_key.handle(), NanNew<Number>(sent));
+
+    NanReturnValue(ret);
 }
 
 WRAPPED_METHOD(Producer, GetMetadata) {
