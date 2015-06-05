@@ -93,15 +93,18 @@ int
 Consumer::consumer_init(string *error) {
     NanScope();
 
+    // Convert persistent options to local for >node 0.12 compatibility
+    Local<Object> options = NanNew(options_);
+
     static PersistentString topic_key("topic");
-    Local<String> name = options_->Get(topic_key).As<String>();
+    Local<String> name = options->Get(topic_key).As<String>();
     if (name == NanUndefined()) {
         *error = "options must contain a topic";
         return -1;
     }
 
     static PersistentString recv_cb_key("recv_cb");
-    Local<Function> recv_cb_fn = options_->Get(recv_cb_key).As<Function>();
+    Local<Function> recv_cb_fn = options->Get(recv_cb_key).As<Function>();
     if (recv_cb_fn == NanUndefined()) {
         *error = "options must contain a recv_cb function";
         return -1;
@@ -109,7 +112,7 @@ Consumer::consumer_init(string *error) {
     recv_callback_.reset(new NanCallback(recv_cb_fn));
 
     static PersistentString max_message_key("max_messages_per_callback");
-    Local<Number> max_messages_obj = options_->Get(max_message_key).As<Number>();
+    Local<Number> max_messages_obj = options->Get(max_message_key).As<Number>();
     if (max_messages_obj != NanUndefined()) {
         this->max_messages_per_callback_ = max_messages_obj->Uint32Value();
     }
@@ -119,7 +122,7 @@ Consumer::consumer_init(string *error) {
         return err;
     }
 
-    String::AsciiValue topic_name(name);
+    String::Utf8Value topic_name(name);
     topic_ = setup_topic(*topic_name, error);
     if (!topic_) {
         return -1;
