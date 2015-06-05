@@ -117,6 +117,10 @@ WRAPPED_METHOD(Producer, Send) {
         msg->payload = malloc(length);
         // WriteUtf8 in v8/src/api.cc
         str->WriteUtf8((char*)msg->payload, length, nullptr, 0);
+
+        // ensure errors aren't missed by checking that
+        // prodce_batch clears the error for good messages
+        msg->err = RD_KAFKA_RESP_ERR_UNKNOWN;
     }
 
     uint32_t sent = rd_kafka_produce_batch(
@@ -125,9 +129,11 @@ WRAPPED_METHOD(Producer, Send) {
     if (sent != message_cnt) {
         // Since rdkafka didn't take ownership of these,
         // we need to free them ourselves.
-        for (uint32_t i = 0; i < (message_cnt - sent); ++i) {
-            rd_kafka_message_t *msg = &messages[i + sent];
-            free(msg->payload);
+        for (uint32_t i = 0; i < message_cnt; ++i) {
+            rd_kafka_message_t *msg = &messages[i];
+            if (msg->err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+                free(msg->payload);
+            }
         }
     }
 
