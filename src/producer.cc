@@ -91,7 +91,7 @@ WRAPPED_METHOD(Producer, Send) {
         NanReturnUndefined();
     }
 
-    String::AsciiValue topic_name(args[0]);
+    String::Utf8Value topic_name(args[0]);
     rd_kafka_topic_t *topic = get_topic(*topic_name);
     if (!topic) {
         string error;
