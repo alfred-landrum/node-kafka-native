@@ -8,9 +8,12 @@
 
 using namespace v8;
 
-Producer::Producer(Local<Object> &options)
-    : Common(RD_KAFKA_PRODUCER, options)
+Producer::Producer(Local<Object> &options):
+    Common(RD_KAFKA_PRODUCER, options),
+    dr_results_(),
+    dr_callback_()
 {
+    uv_mutex_init(&dr_lock_);
 }
 
 Producer::~Producer()
@@ -74,10 +77,106 @@ NAN_METHOD(Producer::New) {
     NanReturnValue(args.This());
 }
 
+class DeliveryReportEvent : public KafkaEvent {
+public:
+    DeliveryReportEvent(Producer *producer):
+        KafkaEvent(),
+        producer_(producer)
+    {}
+
+    static void kafka_cb(rd_kafka_t *rk, void *payload, size_t len, rd_kafka_resp_err_t err, void *opaque, void *msg_opaque) {
+        (void)rk;
+        (void)payload;
+        (void)len;
+        (void)opaque;
+        (void)msg_opaque;
+        Producer *producer = (Producer*)opaque;
+        producer->dr_cb(err);
+    }
+
+    virtual ~DeliveryReportEvent() {}
+
+    virtual void v8_cb() {
+        producer_->dr_cb_v8();
+    }
+
+    Producer *producer_;
+};
+
+void
+Producer::dr_cb(rd_kafka_resp_err_t err) {
+    // Called in librdkafka's polling thread.
+    uv_mutex_lock(&dr_lock_);
+
+    bool send_event = dr_results_.empty();
+
+    auto iter(dr_results_.find(err));
+    if (iter != dr_results_.end()) {
+        iter->second++;
+    } else {
+        dr_results_.insert(std::make_pair(err, 1));
+    }
+
+    uv_mutex_unlock(&dr_lock_);
+
+    if (send_event) {
+        ke_push(std::unique_ptr<KafkaEvent>(new DeliveryReportEvent(this)));
+    }
+}
+
+void
+Producer::dr_cb_v8() {
+    NanScope();
+
+    decltype(dr_results_) results;
+
+    uv_mutex_lock(&dr_lock_);
+    if (dr_results_.empty()) {
+        uv_mutex_unlock(&dr_lock_);
+        return;
+    }
+
+    dr_results_.swap(results);
+    uv_mutex_unlock(&dr_lock_);
+
+    if (!dr_callback_) {
+        return;
+    }
+
+    static PersistentString errcode_key("errcode");
+    static PersistentString count_key("count");
+    static PersistentString errstr_key("errstr");
+
+    int pos = 0;
+    Local<Array> result_arr(NanNew<Array>());
+
+    for (auto& iter : results) {
+        Local<Object> obj(NanNew<Object>());
+        obj->Set(errcode_key.handle(), NanNew<Number>(iter.first));
+        obj->Set(count_key.handle(), NanNew<Number>(iter.second));
+        obj->Set(errstr_key.handle(), NanNew<String>(rd_kafka_err2str(iter.first)));
+        result_arr->Set(pos++, obj);
+    }
+
+    Local<Value> argv[] = { result_arr };
+    dr_callback_->Call(1, argv);
+}
+
 int
 Producer::producer_init(std::string *error_str) {
+    NanScope();
+
     rd_kafka_conf_t *conf = rd_kafka_conf_new();
     rd_kafka_conf_set_opaque(conf, this);
+
+    Local<Object> options = NanNew(options_);
+
+    static PersistentString dr_cb_key("dr_cb");
+    Local<Function> dr_cb_fn = options->Get(dr_cb_key).As<Function>();
+    if (dr_cb_fn != NanUndefined()) {
+        dr_callback_.reset(new NanCallback(dr_cb_fn));
+        rd_kafka_conf_set_dr_cb(conf, DeliveryReportEvent::kafka_cb);
+    }
 
     int err = common_init(conf, error_str);
     if (err) {
