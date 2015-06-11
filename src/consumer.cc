@@ -116,7 +116,10 @@ Consumer::consumer_init(std::string *error) {
         this->max_messages_per_callback_ = max_messages_obj->Uint32Value();
     }
 
-    int err = common_init(error);
+    rd_kafka_conf_t *conf = rd_kafka_conf_new();
+    rd_kafka_conf_set_opaque(conf, this);
+
+    int err = common_init(conf, error);
     if (err) {
         return err;
     }

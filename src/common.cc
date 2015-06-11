@@ -330,11 +330,8 @@ Common::get_topic(const char *name) {
 }
 
 int
-Common::common_init(std::string *error) {
+Common::common_init(rd_kafka_conf_t *conf, std::string *error) {
     NanScope();
-
-    rd_kafka_conf_t *conf = rd_kafka_conf_new();
-    rd_kafka_conf_set_opaque(conf, this);
 
     // Convert persistent options to local for >node 0.12 compatibility
     Local<Object> options = NanNew(options_);

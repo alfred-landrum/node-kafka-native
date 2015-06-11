@@ -76,7 +76,10 @@ NAN_METHOD(Producer::New) {
 
 int
 Producer::producer_init(std::string *error_str) {
-    int err = common_init(error_str);
+    rd_kafka_conf_t *conf = rd_kafka_conf_new();
+    rd_kafka_conf_set_opaque(conf, this);
+
+    int err = common_init(conf, error_str);
     if (err) {
         return err;
     }
