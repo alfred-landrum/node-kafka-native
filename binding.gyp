@@ -29,7 +29,7 @@
         ],[
           'OS=="linux"',
           {
-            'cflags': ['-std=c++11'],
+            'cflags': ['-std=c++11','-g'],
             'libraries' : ['-lz']
           }
         ]
@@ -89,7 +89,7 @@
         ],[
           'OS=="linux"',
           {
-            'cflags' : [ '-Wno-sign-compare', '-Wno-missing-field-initializers', '-Wno-empty-body' ],
+            'cflags' : [ '-Wno-sign-compare', '-Wno-missing-field-initializers', '-Wno-empty-body', '-g'],
           }
         ]
       ]
