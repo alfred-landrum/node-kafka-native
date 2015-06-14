@@ -359,8 +359,10 @@ WRAPPED_METHOD(Consumer, Resume) {
         NanReturnUndefined();
     }
 
-    paused_ = false;
-    looper_->resume();
+    if (paused_) {
+        paused_ = false;
+        looper_->resume();
+    }
 
     NanReturnUndefined();
 }
