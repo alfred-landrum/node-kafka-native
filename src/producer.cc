@@ -7,7 +7,6 @@
 #include "persistent-string.h"
 
 using namespace v8;
-using namespace std;
 
 Producer::Producer(Local<Object> &options)
     : Common(RD_KAFKA_PRODUCER, options)
@@ -63,7 +62,7 @@ NAN_METHOD(Producer::New) {
     Producer* obj = new Producer(options);
     obj->Wrap(args.This());
 
-    string error;
+    std::string error;
     if (obj->producer_init(&error)) {
         NanThrowError(error.c_str());
         NanReturnUndefined();
@@ -73,7 +72,7 @@ NAN_METHOD(Producer::New) {
 }
 
 int
-Producer::producer_init(string *error_str) {
+Producer::producer_init(std::string *error_str) {
     return common_init(error_str);
 }
 
@@ -94,7 +93,7 @@ WRAPPED_METHOD(Producer, Send) {
     String::Utf8Value topic_name(args[0]);
     rd_kafka_topic_t *topic = get_topic(*topic_name);
     if (!topic) {
-        string error;
+        std::string error;
         topic = setup_topic(*topic_name, &error);
         if (!topic) {
             NanThrowError(error.c_str());
@@ -106,7 +105,7 @@ WRAPPED_METHOD(Producer, Send) {
     Local<Array> msg_array(args[2].As<Array>());
     uint32_t message_cnt = msg_array->Length();
 
-    unique_ptr<rd_kafka_message_t[]> holder(new rd_kafka_message_t[message_cnt]());
+    std::unique_ptr<rd_kafka_message_t[]> holder(new rd_kafka_message_t[message_cnt]());
     rd_kafka_message_t *messages = holder.get();
 
     for (uint32_t i = 0; i < message_cnt; ++i) {

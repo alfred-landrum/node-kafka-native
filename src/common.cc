@@ -6,7 +6,6 @@
 #include <iostream>
 #include "persistent-string.h"
 
-using namespace std;
 using namespace v8;
 
 void
@@ -58,9 +57,9 @@ Common::~Common()
     uv_close((uv_handle_t*)&ke_async_, nullptr);
 }
 
-string
+std::string
 Common::rdk_error_string(int err) {
-    return string(rd_kafka_err2str(rd_kafka_errno2err(err)));
+    return std::string(rd_kafka_err2str(rd_kafka_errno2err(err)));
 }
 
 // Event handling
@@ -70,7 +69,7 @@ public:
     static void kafka_cb(const rd_kafka_t *rk, int level, const char *facility, const char *message) {
         // called from poller or kafka broker threads
         Common *common = (Common*)rd_kafka_opaque(rk);
-        common->ke_push(unique_ptr<KafkaEvent>(new LogEvent(common, level, facility, message)));
+        common->ke_push(std::unique_ptr<KafkaEvent>(new LogEvent(common, level, facility, message)));
     }
 
     virtual void v8_cb() {
@@ -108,8 +107,8 @@ protected:
 
     Common *common_;
     int level_;
-    string facility_;
-    string message_;
+    std::string facility_;
+    std::string message_;
 };
 
 class ErrorEvent : public KafkaEvent {
@@ -118,7 +117,7 @@ public:
         // called from poller thread
         (void) rk;
         Common *common = (Common*)opaque;
-        common->ke_push(unique_ptr<KafkaEvent>(new ErrorEvent(common, error, reason)));
+        common->ke_push(std::unique_ptr<KafkaEvent>(new ErrorEvent(common, error, reason)));
     }
 
     virtual void v8_cb() {
@@ -154,7 +153,7 @@ protected:
 
     Common *common_;
     int error_;
-    string reason_;
+    std::string reason_;
 };
 
 class StatEvent : public KafkaEvent {
@@ -164,7 +163,7 @@ public:
         (void) rk;
         (void) json_len;
         Common *common = (Common*)opaque;
-        common->ke_push(unique_ptr<KafkaEvent>(new StatEvent(common, json)));
+        common->ke_push(std::unique_ptr<KafkaEvent>(new StatEvent(common, json)));
         return 0; // 0 lets rd_kafka free json pointer
     }
 
@@ -185,14 +184,14 @@ protected:
     virtual ~StatEvent() {}
 
     Common *common_;
-    string stats_;
+    std::string stats_;
 };
 
 void
-Common::ke_push(unique_ptr<KafkaEvent> event) {
+Common::ke_push(std::unique_ptr<KafkaEvent> event) {
     // called from poller or kafka broker threads
     uv_mutex_lock(&ke_queue_lock_);
-    ke_queue_.push_back(move(event));
+    ke_queue_.push_back(std::move(event));
     uv_mutex_unlock(&ke_queue_lock_);
     uv_async_send(&ke_async_);
 }
@@ -233,7 +232,7 @@ Common::kafka_poller() {
 }
 
 rd_kafka_topic_t*
-Common::setup_topic(const char *name, string *error) {
+Common::setup_topic(const char *name, std::string *error) {
     NanScope();
 
     rd_kafka_topic_t *topic = get_topic(name);
@@ -258,7 +257,7 @@ Common::setup_topic(const char *name, string *error) {
             }
             if (rd_kafka_topic_conf_set(conf, *NanAsciiString(key), *NanAsciiString(val),
                                         errstr, errsize) != RD_KAFKA_CONF_OK) {
-                *error = string(errstr);
+                *error = std::string(errstr);
                 rd_kafka_topic_conf_destroy(conf);
                 return nullptr;
             }
@@ -275,7 +274,7 @@ Common::setup_topic(const char *name, string *error) {
     // conf now owned by rd_kafka
     conf = nullptr;
 
-    topics_.insert(make_pair(name, topic));
+    topics_.insert(std::make_pair(name, topic));
 
     return topic;
 }
@@ -290,7 +289,7 @@ Common::get_topic(const char *name) {
 }
 
 int
-Common::common_init(string *error) {
+Common::common_init(std::string *error) {
     NanScope();
 
     rd_kafka_conf_t *conf = rd_kafka_conf_new();
@@ -341,7 +340,7 @@ Common::common_init(string *error) {
             }
             if (rd_kafka_conf_set(conf, *NanAsciiString(key), *NanAsciiString(val),
                                     errstr, errsize) != RD_KAFKA_CONF_OK) {
-                *error = string(errstr);
+                *error = std::string(errstr);
                 rd_kafka_conf_destroy(conf);
                 return -1;
             }
@@ -350,7 +349,7 @@ Common::common_init(string *error) {
 
     kafka_client_ = rd_kafka_new(ktype_, conf, errstr, sizeof(errstr));
     if (!kafka_client_) {
-        *error = string(errstr);
+        *error = std::string(errstr);
         rd_kafka_conf_destroy(conf);
         return -1;
     }
@@ -464,7 +463,7 @@ public:
         err = rd_kafka_metadata(client_, /*all_topics*/ 0, topic_,
             (const struct rd_kafka_metadata **) &metadata_, timeout_ms);
         if (err) {
-            string errstr(Common::rdk_error_string(err));
+            std::string errstr(Common::rdk_error_string(err));
             SetErrorMessage(errstr.c_str());
         }
     }
@@ -502,7 +501,7 @@ NAN_METHOD(Common::get_metadata)
     String::Utf8Value topic_name(args[0]);
     rd_kafka_topic_t *topic = get_topic(*topic_name);
     if (!topic) {
-        string error;
+        std::string error;
         topic = setup_topic(*topic_name, &error);
         if (!topic) {
             NanThrowError(error.c_str());
