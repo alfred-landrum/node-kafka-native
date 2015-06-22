@@ -7,7 +7,6 @@
 #include "persistent-string.h"
 
 using namespace v8;
-using namespace std;
 
 Consumer::Consumer(Local<Object> &options):
     Common(RD_KAFKA_CONSUMER, options),
@@ -80,7 +79,7 @@ NAN_METHOD(Consumer::New) {
     Consumer* obj = new Consumer(options);
     obj->Wrap(args.This());
 
-    string error;
+    std::string error;
     if (obj->consumer_init(&error)) {
         NanThrowError(error.c_str());
         NanReturnUndefined();
@@ -90,7 +89,7 @@ NAN_METHOD(Consumer::New) {
 }
 
 int
-Consumer::consumer_init(string *error) {
+Consumer::consumer_init(std::string *error) {
     NanScope();
 
     // Convert persistent options to local for >node 0.12 compatibility
@@ -198,7 +197,7 @@ private:
 
 class RecvEvent : public KafkaEvent {
 public:
-    RecvEvent(Consumer *consumer, ConsumerLoop *looper, vector<rd_kafka_message_t*> &&msgs):
+    RecvEvent(Consumer *consumer, ConsumerLoop *looper, std::vector<rd_kafka_message_t*> &&msgs):
         KafkaEvent(),
         consumer_(consumer),
         looper_(looper),
@@ -218,7 +217,7 @@ public:
 
     Consumer *consumer_;
     ConsumerLoop *looper_;
-    vector<rd_kafka_message_t*> msgs_;
+    std::vector<rd_kafka_message_t*> msgs_;
 };
 
 class LooperStopped : public KafkaEvent {
@@ -263,7 +262,7 @@ ConsumerLoop::should_continue()
 void
 ConsumerLoop::run()
 {
-    vector<rd_kafka_message_t*> vec;
+    std::vector<rd_kafka_message_t*> vec;
 
     while (should_continue()) {
         const uint32_t max_size = consumer_->max_messages_per_callback();
@@ -275,11 +274,11 @@ ConsumerLoop::run()
             vec.resize(cnt);
 
             pause();
-            consumer_->ke_push(unique_ptr<KafkaEvent>(new RecvEvent(consumer_, this, move(vec))));
+            consumer_->ke_push(std::unique_ptr<KafkaEvent>(new RecvEvent(consumer_, this, std::move(vec))));
         }
     }
 
-    consumer_->ke_push(unique_ptr<KafkaEvent>(new LooperStopped(consumer_, this)));
+    consumer_->ke_push(std::unique_ptr<KafkaEvent>(new LooperStopped(consumer_, this)));
 }
 
 WRAPPED_METHOD(Consumer, Start) {
@@ -381,7 +380,7 @@ WRAPPED_METHOD(Consumer, GetMetadata) {
 }
 
 void
-Consumer::receive(ConsumerLoop *looper, const vector<rd_kafka_message_t*> &vec) {
+Consumer::receive(ConsumerLoop *looper, const std::vector<rd_kafka_message_t*> &vec) {
     // called in v8 thread
     NanScope();
 
