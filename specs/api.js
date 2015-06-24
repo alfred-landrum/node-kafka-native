@@ -92,7 +92,10 @@ describe('api tests', function() {
         });
         // Use get_partition_count to verify that rdkafka
         // structures have been setup.
-        return get_partition_count(producer, topic_name);
+        return get_partition_count(producer, topic_name)
+        .then(function() {
+            producer.stop();
+        });
     });
 
     it('should create new consumer', function() {
@@ -104,7 +107,10 @@ describe('api tests', function() {
                 'metadata.broker.list': broker,
             },
         });
-        return get_partition_count(consumer, topic_name);
+        return get_partition_count(consumer, topic_name)
+        .then(function() {
+            consumer.stop();
+        });
     });
 
     it('should produce and consume messages', function() {
@@ -153,6 +159,7 @@ describe('api tests', function() {
             });
         })
         .then(function() {
+            producer.stop();
             consumer.stop();
         });
     });
@@ -218,6 +225,7 @@ describe('api tests', function() {
             }, {max_tries: 2, interval: 1000});
         })
         .then(function() {
+            producer.stop();
             consumer.stop();
         });
     });
@@ -269,6 +277,7 @@ describe('api tests', function() {
             });
         })
         .then(function() {
+            producer.stop();
             consumer.stop();
         });
     });
