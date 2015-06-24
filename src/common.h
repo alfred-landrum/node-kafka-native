@@ -55,7 +55,7 @@ public:
 
     // rd_kafka_poll
     uv_thread_t poll_thread_;
-    uv_async_t ke_async_;
+    uv_async_t *ke_async_;
     uv_mutex_t ke_queue_lock_;
 
     // shutting down

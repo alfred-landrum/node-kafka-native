@@ -19,15 +19,24 @@ ke_async_ready(uv_async_t* handle)
     common->ke_check();
 }
 
+void
+ke_async_destroy(uv_handle_t* _ke_async)
+{
+    uv_async_t* ke_async = (uv_async_t*)_ke_async;
+    delete ke_async;
+}
+
 Common::Common(rd_kafka_type_t ktype, v8::Local<v8::Object> &options):
     ktype_(ktype),
     kafka_client_(nullptr),
     poll_thread_(),
+    ke_async_(nullptr),
     shutting_(false)
 {
     uv_mutex_init(&ke_queue_lock_);
-    ke_async_.data = this;
-    uv_async_init(uv_default_loop(), &ke_async_, ke_async_ready);
+    ke_async_ = new uv_async_t();
+    ke_async_->data = this;
+    uv_async_init(uv_default_loop(), ke_async_, ke_async_ready);
 
     NanAssignPersistent(options_, options);
 }
@@ -54,7 +63,8 @@ Common::~Common()
     }
 
     uv_mutex_destroy(&ke_queue_lock_);
-    uv_close((uv_handle_t*)&ke_async_, nullptr);
+    uv_close((uv_handle_t*)ke_async_, ke_async_destroy);
+    ke_async_ = nullptr;
 }
 
 std::string
@@ -193,7 +203,7 @@ Common::ke_push(std::unique_ptr<KafkaEvent> event) {
     uv_mutex_lock(&ke_queue_lock_);
     ke_queue_.push_back(std::move(event));
     uv_mutex_unlock(&ke_queue_lock_);
-    uv_async_send(&ke_async_);
+    uv_async_send(ke_async_);
 }
 
 void
