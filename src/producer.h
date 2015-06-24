@@ -19,8 +19,9 @@ private:
 
     static NAN_METHOD(New);
 
-    WRAPPED_METHOD_DECL(Send);
     WRAPPED_METHOD_DECL(GetMetadata);
+    WRAPPED_METHOD_DECL(Send);
+    WRAPPED_METHOD_DECL(Stop);
 
     static v8::Persistent<v8::Function> constructor;
 };

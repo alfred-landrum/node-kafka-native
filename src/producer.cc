@@ -30,6 +30,8 @@ Producer::Init() {
 
     NODE_SET_PROTOTYPE_METHOD(tpl, "send", WRAPPED_METHOD_NAME(Send));
     NODE_SET_PROTOTYPE_METHOD(tpl, "get_metadata", WRAPPED_METHOD_NAME(GetMetadata));
+    NODE_SET_PROTOTYPE_METHOD(tpl, "stop", WRAPPED_METHOD_NAME(Stop));
+
 
     NanAssignPersistent(constructor, tpl->GetFunction());
 }
@@ -73,14 +75,21 @@ NAN_METHOD(Producer::New) {
 
 int
 Producer::producer_init(std::string *error_str) {
-    return common_init(error_str);
+    int err = common_init(error_str);
+    if (err) {
+        return err;
+    }
+
+    start_poll();
+
+    return 0;
 }
 
 WRAPPED_METHOD(Producer, Send) {
     NanScope();
 
-    if (!kafka_client_) {
-        NanThrowError("you must setup the client before using send");
+    if (stop_called_) {
+        NanThrowError("already shutdown");
         NanReturnUndefined();
     }
 
@@ -150,6 +159,22 @@ WRAPPED_METHOD(Producer, Send) {
 
 WRAPPED_METHOD(Producer, GetMetadata) {
     NanScope();
+
+    if (stop_called_) {
+        NanThrowError("already shutdown");
+        NanReturnUndefined();
+    }
+
     get_metadata(args);
+
+    NanReturnUndefined();
+}
+
+WRAPPED_METHOD(Producer, Stop) {
+    NanScope();
+
+    stop_called_ = true;
+    stop_poll();
+
     NanReturnUndefined();
 }

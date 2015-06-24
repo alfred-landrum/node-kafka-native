@@ -129,6 +129,8 @@ Consumer::consumer_init(std::string *error) {
 
     queue_ = rd_kafka_queue_new(kafka_client_);
 
+    start_poll();
+
     return 0;
 }
 
@@ -284,6 +286,11 @@ ConsumerLoop::run()
 WRAPPED_METHOD(Consumer, Start) {
     NanScope();
 
+    if (stop_called_) {
+        NanThrowError("already shutdown");
+        NanReturnUndefined();
+    }
+
     if (looper_) {
         NanThrowError("consumer already started");
         NanReturnUndefined();
@@ -306,8 +313,6 @@ WRAPPED_METHOD(Consumer, Start) {
         rd_kafka_consume_start_queue(topic_, partition, offset, queue_);
     }
 
-    Ref();
-
     paused_ = false;
     looper_ = new ConsumerLoop(this, queue_);
     looper_->start();
@@ -318,11 +323,19 @@ WRAPPED_METHOD(Consumer, Start) {
 WRAPPED_METHOD(Consumer, Stop) {
     NanScope();
 
-    if (!looper_) {
-        NanThrowError("consumer not started");
+    if (stop_called_) {
+        NanThrowError("already shutdown");
         NanReturnUndefined();
     }
 
+    stop_called_ = true;
+
+    if (!looper_) {
+        stop_poll();
+        NanReturnUndefined();
+    }
+
+    // start was called
     for (size_t i = 0; i < partitions_.size(); ++i) {
         rd_kafka_consume_stop(topic_, partitions_[i]);
     }
@@ -336,8 +349,20 @@ WRAPPED_METHOD(Consumer, Stop) {
     NanReturnUndefined();
 }
 
+void
+Consumer::looper_stopped(ConsumerLoop *looper) {
+    delete looper;
+    looper = nullptr;
+    stop_poll();
+}
+
 WRAPPED_METHOD(Consumer, Pause) {
     NanScope();
+
+    if (stop_called_) {
+        NanThrowError("already shutdown");
+        NanReturnUndefined();
+    }
 
     if (!looper_) {
         NanThrowError("consumer not started");
@@ -353,6 +378,11 @@ WRAPPED_METHOD(Consumer, Pause) {
 WRAPPED_METHOD(Consumer, Resume) {
     NanScope();
 
+    if (stop_called_) {
+        NanThrowError("already shutdown");
+        NanReturnUndefined();
+    }
+
     if (!looper_) {
         NanThrowError("consumer not started");
         NanReturnUndefined();
@@ -364,13 +394,6 @@ WRAPPED_METHOD(Consumer, Resume) {
     }
 
     NanReturnUndefined();
-}
-
-void
-Consumer::looper_stopped(ConsumerLoop *looper) {
-    // TODO: dec a looper count on consumer for graceful shutdown
-    Unref();
-    delete looper;
 }
 
 WRAPPED_METHOD(Consumer, GetMetadata) {

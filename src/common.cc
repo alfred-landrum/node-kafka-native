@@ -26,12 +26,13 @@ ke_async_destroy(uv_handle_t* _ke_async)
     delete ke_async;
 }
 
-Common::Common(rd_kafka_type_t ktype, v8::Local<v8::Object> &options):
+Common::Common(rd_kafka_type_t ktype, Local<Object> &options):
     ktype_(ktype),
     kafka_client_(nullptr),
     poll_thread_(),
     ke_async_(nullptr),
-    shutting_(false)
+    stop_called_(false),
+    keep_polling_(true)
 {
     uv_mutex_init(&ke_queue_lock_);
     ke_async_ = new uv_async_t();
@@ -39,11 +40,6 @@ Common::Common(rd_kafka_type_t ktype, v8::Local<v8::Object> &options):
     uv_async_init(uv_default_loop(), ke_async_, ke_async_ready);
 
     NanAssignPersistent(options_, options);
-}
-
-void
-Common::shutdown() {
-    // TODO: stop the polling loop
 }
 
 Common::~Common()
@@ -56,7 +52,7 @@ Common::~Common()
         rd_kafka_topic_destroy(iter.second);
         iter.second = nullptr;
     }
-    // TODO: investigate rd_kafka_wait_destroyed
+
     if (kafka_client_) {
         rd_kafka_destroy(kafka_client_);
         kafka_client_ = nullptr;
@@ -197,6 +193,22 @@ protected:
     std::string stats_;
 };
 
+class PollStopped : public KafkaEvent {
+public:
+    PollStopped(Common *common):
+        KafkaEvent(),
+        common_(common)
+    {}
+
+    virtual ~PollStopped() { }
+
+    virtual void v8_cb() {
+        common_->poll_stopped();
+    }
+
+    Common *common_;
+};
+
 void
 Common::ke_push(std::unique_ptr<KafkaEvent> event) {
     // called from poller or kafka broker threads
@@ -234,11 +246,30 @@ poller_trampoline(void *_common) {
 
 void
 Common::kafka_poller() {
-    // poller thread
-    int timeout_ms = 500;
-    while (!shutting_) {
+    // This is a separate thread that exists solely to make the below call to
+    // rd_kafka_poll, which is how the stats, error, and log callbacks execute.
+    const int timeout_ms = 500;
+    while (keep_polling_) {
         rd_kafka_poll(kafka_client_, timeout_ms);
     }
+    ke_push(std::unique_ptr<KafkaEvent>(new PollStopped(this)));
+}
+
+void
+Common::start_poll() {
+    Ref();
+
+    uv_thread_create(&poll_thread_, poller_trampoline, this);
+}
+
+void
+Common::stop_poll() {
+    keep_polling_ = false;
+}
+
+void
+Common::poll_stopped() {
+    Unref();
 }
 
 rd_kafka_topic_t*
@@ -366,9 +397,6 @@ Common::common_init(std::string *error) {
     // conf now owned by rd_kafka
     conf = nullptr;
 
-    uv_thread_create(&poll_thread_, poller_trampoline, this);
-
-    Ref();
     return 0;
 }
 
@@ -465,7 +493,7 @@ public:
         }
     }
 
-    void Execute () {
+    void Execute() {
         // worker thread
         rd_kafka_resp_err_t err;
         const int timeout_ms = 1000;

@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 #include <map>
+#include <atomic>
 #include <node.h>
 #include <nan.h>
 
@@ -28,6 +29,9 @@ public:
     Common &operator=(const Common &) = delete;
 
     int common_init(std::string *error);
+    void start_poll();
+    void stop_poll();
+    void poll_stopped();
 
     NAN_METHOD(get_metadata);
 
@@ -58,7 +62,6 @@ public:
     uv_async_t *ke_async_;
     uv_mutex_t ke_queue_lock_;
 
-    // shutting down
-    void shutdown();
-    bool shutting_;
+    bool stop_called_;
+    std::atomic<bool> keep_polling_;
 };
