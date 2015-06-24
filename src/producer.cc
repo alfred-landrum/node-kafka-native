@@ -30,6 +30,7 @@ Producer::Init() {
 
     NODE_SET_PROTOTYPE_METHOD(tpl, "send", WRAPPED_METHOD_NAME(Send));
     NODE_SET_PROTOTYPE_METHOD(tpl, "get_metadata", WRAPPED_METHOD_NAME(GetMetadata));
+    NODE_SET_PROTOTYPE_METHOD(tpl, "outq_length", WRAPPED_METHOD_NAME(OutQueueLength));
     NODE_SET_PROTOTYPE_METHOD(tpl, "stop", WRAPPED_METHOD_NAME(Stop));
 
 
@@ -168,6 +169,19 @@ WRAPPED_METHOD(Producer, GetMetadata) {
     get_metadata(args);
 
     NanReturnUndefined();
+}
+
+WRAPPED_METHOD(Producer, OutQueueLength) {
+    NanScope();
+
+    if (stop_called_) {
+        NanThrowError("already shutdown");
+        NanReturnUndefined();
+    }
+
+    int qlen = rd_kafka_outq_len(kafka_client_);
+
+    NanReturnValue(NanNew<Number>(qlen));
 }
 
 WRAPPED_METHOD(Producer, Stop) {

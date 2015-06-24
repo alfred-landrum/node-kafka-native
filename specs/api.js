@@ -144,6 +144,7 @@ describe('api tests', function() {
             consumer.start(partitions)
 
             return retry(function(cancel) {
+                expect(producer.outq_length()).equals(0);
                 expect(_.keys(received_messages).length).equals(num_partitions);
                 _.each(_.range(num_partitions), function(partition) {
                     var msgs = received_messages[partition];

@@ -20,6 +20,7 @@ private:
     static NAN_METHOD(New);
 
     WRAPPED_METHOD_DECL(GetMetadata);
+    WRAPPED_METHOD_DECL(OutQueueLength);
     WRAPPED_METHOD_DECL(Send);
     WRAPPED_METHOD_DECL(Stop);
 
