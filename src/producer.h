@@ -25,4 +25,11 @@ private:
     WRAPPED_METHOD_DECL(Stop);
 
     static v8::Persistent<v8::Function> constructor;
+
+    friend class DeliveryReportEvent;
+    void dr_cb(rd_kafka_resp_err_t err);
+    void dr_cb_v8();
+    uv_mutex_t dr_lock_;
+    std::map<rd_kafka_resp_err_t, size_t> dr_results_;
+    std::unique_ptr<NanCallback> dr_callback_;
 };

@@ -28,7 +28,7 @@ public:
     Common(const Common &) = delete;
     Common &operator=(const Common &) = delete;
 
-    int common_init(std::string *error);
+    int common_init(rd_kafka_conf_t *conf, std::string *error);
     void start_poll();
     void stop_poll();
     void poll_stopped();
