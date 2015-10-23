@@ -17,7 +17,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "nan": "^1.8.4"
+    "nan": "^2.1.0"
   },
   "devDependencies": {
     "bluebird": "^2.9.14",

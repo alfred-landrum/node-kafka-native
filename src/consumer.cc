@@ -31,88 +31,87 @@ Consumer::~Consumer()
     topic_ = nullptr;
 }
 
-Persistent<Function> Consumer::constructor;
+Nan::Persistent<Function> Consumer::constructor;
 
 void
 Consumer::Init() {
-    NanScope();
+    Nan::HandleScope scope;
 
     // Prepare constructor template
-    Local<FunctionTemplate> tpl = NanNew<FunctionTemplate>(New);
-    tpl->SetClassName(NanNew("Consumer"));
+    Local<FunctionTemplate> tpl = Nan::New<FunctionTemplate>(New);
+    tpl->SetClassName(Nan::New("Consumer").ToLocalChecked());
     tpl->InstanceTemplate()->SetInternalFieldCount(1);
 
-    NODE_SET_PROTOTYPE_METHOD(tpl, "start", WRAPPED_METHOD_NAME(Start));
-    NODE_SET_PROTOTYPE_METHOD(tpl, "stop", WRAPPED_METHOD_NAME(Stop));
-    NODE_SET_PROTOTYPE_METHOD(tpl, "pause", WRAPPED_METHOD_NAME(Pause));
-    NODE_SET_PROTOTYPE_METHOD(tpl, "resume", WRAPPED_METHOD_NAME(Resume));
-    NODE_SET_PROTOTYPE_METHOD(tpl, "get_metadata", WRAPPED_METHOD_NAME(GetMetadata));
+    Nan::SetPrototypeMethod(tpl, "start", WRAPPED_METHOD_NAME(Start));
+    Nan::SetPrototypeMethod(tpl, "stop", WRAPPED_METHOD_NAME(Stop));
+    Nan::SetPrototypeMethod(tpl, "pause", WRAPPED_METHOD_NAME(Pause));
+    Nan::SetPrototypeMethod(tpl, "resume", WRAPPED_METHOD_NAME(Resume));
+    Nan::SetPrototypeMethod(tpl, "get_metadata", WRAPPED_METHOD_NAME(GetMetadata));
 
-    NanAssignPersistent(constructor, tpl->GetFunction());
+    constructor.Reset(tpl->GetFunction());
 }
 
 Local<Object>
 Consumer::NewInstance(Local<Value> arg) {
-    NanEscapableScope();
+    Nan::EscapableHandleScope scope;
 
     const unsigned argc = 1;
     Local<Value> argv[argc] = { arg };
-    Local<Function> cons = NanNew<Function>(constructor);
-    Local<Object> instance = cons->NewInstance(argc, argv);
+    Local<Function> cons = Nan::New<Function>(constructor);
+    Local<Object> instance = Nan::NewInstance(cons, argc, argv).ToLocalChecked();
 
-    return NanEscapeScope(instance);
+    return scope.Escape(instance);
 }
 
 NAN_METHOD(Consumer::New) {
-    NanScope();
 
-    if (!args.IsConstructCall()) {
-        return NanThrowError("non-constructor invocation not supported");
+    if (!info.IsConstructCall()) {
+        return Nan::ThrowError("non-constructor invocation not supported");
     }
 
-    Local<Object> options(NanNew<Object>());
+    Local<Object> options(Nan::New<Object>());
 
-    if (args.Length() == 1 && args[0]->IsObject()) {
-        options = args[0].As<Object>();
+    if (info.Length() == 1 && info[0]->IsObject()) {
+        options = info[0].As<Object>();
     }
 
     Consumer* obj = new Consumer(options);
-    obj->Wrap(args.This());
+    obj->Wrap(info.This());
 
     std::string error;
     if (obj->consumer_init(&error)) {
-        NanThrowError(error.c_str());
-        NanReturnUndefined();
+        Nan::ThrowError(error.c_str());
+        return;
     }
 
-    NanReturnValue(args.This());
+    info.GetReturnValue().Set(info.This());
 }
 
 int
 Consumer::consumer_init(std::string *error) {
-    NanScope();
+    Nan::HandleScope scope;
 
     // Convert persistent options to local for >node 0.12 compatibility
-    Local<Object> options = NanNew(options_);
+    Local<Object> options = Nan::New(options_);
 
     static PersistentString topic_key("topic");
-    Local<String> name = options->Get(topic_key).As<String>();
-    if (name == NanUndefined()) {
+    Local<String> name = Nan::Get(options, topic_key).ToLocalChecked().As<String>();
+    if (name == Nan::Undefined()) {
         *error = "options must contain a topic";
         return -1;
     }
 
     static PersistentString recv_cb_key("recv_cb");
-    Local<Function> recv_cb_fn = options->Get(recv_cb_key).As<Function>();
-    if (recv_cb_fn == NanUndefined()) {
+    Local<Function> recv_cb_fn = Nan::Get(options, recv_cb_key).ToLocalChecked().As<Function>();
+    if (recv_cb_fn == Nan::Undefined()) {
         *error = "options must contain a recv_cb function";
         return -1;
     }
-    recv_callback_.reset(new NanCallback(recv_cb_fn));
+    recv_callback_.reset(new Nan::Callback(recv_cb_fn));
 
     static PersistentString max_message_key("max_messages_per_callback");
-    Local<Number> max_messages_obj = options->Get(max_message_key).As<Number>();
-    if (max_messages_obj != NanUndefined()) {
+    Local<Number> max_messages_obj = Nan::Get(options, max_message_key).ToLocalChecked().As<Number>();
+    if (max_messages_obj != Nan::Undefined()) {
         this->max_messages_per_callback_ = max_messages_obj->Uint32Value();
     }
 
@@ -287,30 +286,30 @@ ConsumerLoop::run()
 }
 
 WRAPPED_METHOD(Consumer, Start) {
-    NanScope();
+    Nan::HandleScope scope;
 
     if (stop_called_) {
-        NanThrowError("already shutdown");
-        NanReturnUndefined();
+        Nan::ThrowError("already shutdown");
+        return;
     }
 
     if (looper_) {
-        NanThrowError("consumer already started");
-        NanReturnUndefined();
+        Nan::ThrowError("consumer already started");
+        return;
     }
 
-    if (args.Length() != 1 ||
-        !( args[0]->IsObject()) ) {
-        NanThrowError("you must specify partition/offsets");
-        NanReturnUndefined();
+    if (info.Length() != 1 ||
+        !( info[0]->IsObject()) ) {
+        Nan::ThrowError("you must specify partition/offsets");
+        return;
     }
 
-    Local<Object> offsets = args[0].As<Object>();
-    Local<Array> keys = offsets->GetOwnPropertyNames();
+    Local<Object> offsets = info[0].As<Object>();
+    Local<Array> keys = Nan::GetOwnPropertyNames(offsets).ToLocalChecked();
     for (size_t i = 0; i < keys->Length(); i++) {
-        Local<Value> key = keys->Get(i);
+        Local<Value> key = Nan::Get(keys, i).ToLocalChecked();
         uint32_t partition = key.As<Number>()->Uint32Value();
-        int64_t offset = offsets->Get(key).As<Number>()->IntegerValue();
+        int64_t offset = Nan::Get(offsets, key).ToLocalChecked().As<Number>()->IntegerValue();
 
         partitions_.push_back(partition);
         rd_kafka_consume_start_queue(topic_, partition, offset, queue_);
@@ -320,22 +319,22 @@ WRAPPED_METHOD(Consumer, Start) {
     looper_ = new ConsumerLoop(this, queue_);
     looper_->start();
 
-    NanReturnUndefined();
+    return;
 }
 
 WRAPPED_METHOD(Consumer, Stop) {
-    NanScope();
+    Nan::HandleScope scope;
 
     if (stop_called_) {
-        NanThrowError("already shutdown");
-        NanReturnUndefined();
+        Nan::ThrowError("already shutdown");
+        return;
     }
 
     stop_called_ = true;
 
     if (!looper_) {
         stop_poll();
-        NanReturnUndefined();
+        return;
     }
 
     // start was called
@@ -349,7 +348,7 @@ WRAPPED_METHOD(Consumer, Stop) {
     looper_->stop();
     looper_ = nullptr;
 
-    NanReturnUndefined();
+    return;
 }
 
 void
@@ -360,35 +359,35 @@ Consumer::looper_stopped(ConsumerLoop *looper) {
 }
 
 WRAPPED_METHOD(Consumer, Pause) {
-    NanScope();
+    Nan::HandleScope scope;
 
     if (stop_called_) {
-        NanThrowError("already shutdown");
-        NanReturnUndefined();
+        Nan::ThrowError("already shutdown");
+        return;
     }
 
     if (!looper_) {
-        NanThrowError("consumer not started");
-        NanReturnUndefined();
+        Nan::ThrowError("consumer not started");
+        return;
     }
 
     paused_ = true;
     looper_->pause();
 
-    NanReturnUndefined();
+    return;
 }
 
 WRAPPED_METHOD(Consumer, Resume) {
-    NanScope();
+    Nan::HandleScope scope;
 
     if (stop_called_) {
-        NanThrowError("already shutdown");
-        NanReturnUndefined();
+        Nan::ThrowError("already shutdown");
+        return;
     }
 
     if (!looper_) {
-        NanThrowError("consumer not started");
-        NanReturnUndefined();
+        Nan::ThrowError("consumer not started");
+        return;
     }
 
     if (paused_) {
@@ -396,19 +395,19 @@ WRAPPED_METHOD(Consumer, Resume) {
         looper_->resume();
     }
 
-    NanReturnUndefined();
+    return;
 }
 
 WRAPPED_METHOD(Consumer, GetMetadata) {
-    NanScope();
-    get_metadata(args);
-    NanReturnUndefined();
+    Nan::HandleScope scope;
+    get_metadata(info);
+    return;
 }
 
 void
 Consumer::receive(ConsumerLoop *looper, const std::vector<rd_kafka_message_t*> &vec) {
     // called in v8 thread
-    NanScope();
+    Nan::HandleScope scope;
 
     if (looper->stopping()) {
         // This message came in after a stop_recv was issued, but before
@@ -429,28 +428,28 @@ Consumer::receive(ConsumerLoop *looper, const std::vector<rd_kafka_message_t*> &
     int msg_idx = -1;
     int err_idx = -1;
 
-    Local<Array> messages = NanNew<Array>();
-    Local<Array> errors = NanNew<Array>();
+    Local<Array> messages = Nan::New<Array>();
+    Local<Array> errors = Nan::New<Array>();
     for (auto msg : vec) {
-        Local<Object> obj = NanNew<Object>();
+        Local<Object> obj = Nan::New<Object>();
 
-        obj->Set(topic_key.handle(), NanNew<String>(rd_kafka_topic_name(msg->rkt)));
-        obj->Set(partition_key.handle(), NanNew<Number>(msg->partition));
-        obj->Set(offset_key.handle(), NanNew<Number>(msg->offset));
+        Nan::Set(obj, topic_key.handle(), Nan::New<String>(rd_kafka_topic_name(msg->rkt)).ToLocalChecked());
+        Nan::Set(obj, partition_key.handle(), Nan::New<Number>(msg->partition));
+        Nan::Set(obj, offset_key.handle(), Nan::New<Number>(msg->offset));
 
         if (msg->err) {
-            obj->Set(errcode_key.handle(), NanNew<Number>(msg->err));
-            errors->Set(++err_idx, obj);
+            Nan::Set(obj, errcode_key.handle(), Nan::New<Number>(msg->err));
+            Nan::Set(errors, ++err_idx, obj);
             continue;
         }
 
         if (msg->key_len) {
-            obj->Set(key_key.handle(), NanNew<String>((char*)msg->key, msg->key_len));
+            Nan::Set(obj, key_key.handle(), Nan::New<String>((char*)msg->key, msg->key_len).ToLocalChecked());
         }
         if (msg->len) {
-            obj->Set(payload_key.handle(), NanNew<String>((char*)msg->payload, msg->len));
+            Nan::Set(obj, payload_key.handle(), Nan::New<String>((char*)msg->payload, msg->len).ToLocalChecked());
         }
-        messages->Set(++msg_idx, obj);
+        Nan::Set(messages, ++msg_idx, obj);
     }
 
     if (msg_idx > -1 || err_idx > -1) {

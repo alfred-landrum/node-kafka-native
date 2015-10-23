@@ -6,25 +6,23 @@
 using namespace v8;
 
 NAN_METHOD(CreateProducer) {
-    NanScope();
-    NanReturnValue(Producer::NewInstance(args[0]));
+    info.GetReturnValue().Set(Producer::NewInstance(info[0]));
 }
 
 NAN_METHOD(CreateConsumer) {
-    NanScope();
-    NanReturnValue(Consumer::NewInstance(args[0]));
+    info.GetReturnValue().Set(Consumer::NewInstance(info[0]));
 }
 
 void InitAll(Handle<Object> exports) {
-    NanScope();
+    Nan::HandleScope scope;
 
     Producer::Init();
     Consumer::Init();
 
-    exports->Set(NanNew("Producer"),
-        NanNew<FunctionTemplate>(CreateProducer)->GetFunction());
-    exports->Set(NanNew("Consumer"),
-        NanNew<FunctionTemplate>(CreateConsumer)->GetFunction());
+    Nan::Set(exports, Nan::New("Producer").ToLocalChecked(),
+        Nan::GetFunction(Nan::New<FunctionTemplate>(CreateProducer)).ToLocalChecked());
+    Nan::Set(exports, Nan::New("Consumer").ToLocalChecked(),
+        Nan::GetFunction(Nan::New<FunctionTemplate>(CreateConsumer)).ToLocalChecked());
 }
 
 NODE_MODULE(jut_node_kafka, InitAll)

@@ -5,15 +5,18 @@
 // Simple helper class
 class PersistentString {
 public:
+    typedef Nan::Persistent<v8::String> PersistentStringRef;
+    
     PersistentString(const char* str) : string_(str) {
     }
 
     // Return a local handle to the persistent string
     v8::Local<v8::String> handle() {
         if (handle_.IsEmpty()) {
-            NanAssignPersistent(handle_, NanNew<v8::String>(string_.c_str()));
+            v8::Local<v8::String> local = Nan::New<v8::String>(string_).ToLocalChecked();
+            handle_.Reset(local);
         }
-        return NanNew<v8::String>(handle_);
+        return Nan::New<v8::String>(handle_);
     }
 
     // Define the casting operator to a local handle so that a persistent string
@@ -27,6 +30,6 @@ public:
     }
 
 private:
-    v8::Persistent<v8::String> handle_;
+    PersistentStringRef handle_;
     std::string string_;
 };

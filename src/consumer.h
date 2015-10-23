@@ -33,13 +33,13 @@ private:
     WRAPPED_METHOD_DECL(Resume);
     WRAPPED_METHOD_DECL(GetMetadata);
 
-    static v8::Persistent<v8::Function> constructor;
+    static Nan::Persistent<v8::Function> constructor;
 
     rd_kafka_topic_t *topic_;
     std::vector<uint32_t> partitions_;
     ConsumerLoop *looper_;
     rd_kafka_queue_t *queue_;
     bool paused_;
-    std::unique_ptr<NanCallback> recv_callback_;
+    std::unique_ptr<Nan::Callback> recv_callback_;
     uint32_t max_messages_per_callback_;
 };
