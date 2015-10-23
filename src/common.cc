@@ -39,13 +39,13 @@ Common::Common(rd_kafka_type_t ktype, Local<Object> &options):
     ke_async_->data = this;
     uv_async_init(uv_default_loop(), ke_async_, ke_async_ready);
 
-    NanAssignPersistent(options_, options);
+    options_.Reset(options);
 }
 
 Common::~Common()
 {
     if (!options_.IsEmpty()) {
-        NanDisposePersistent(options_);
+        options_.Reset();
     }
 
     for (auto& iter : topics_) {
@@ -79,7 +79,7 @@ public:
     }
 
     virtual void v8_cb() {
-        NanScope();
+        Nan::HandleScope scope;
         if (common_->log_event_callback_) {
             Local<Value> argv[] = { toJsObject() };
             common_->log_event_callback_->Call(1, argv);
@@ -88,18 +88,18 @@ public:
 
 protected:
     Local<Object> toJsObject() {
-        NanEscapableScope();
+        Nan::EscapableHandleScope scope;
 
         static PersistentString level_key("level");
         static PersistentString facility_key("facility");
         static PersistentString message_key("message");
 
-        Local<Object> obj = NanNew<Object>();
-        obj->Set(level_key.handle(), NanNew<Number>(level_));
-        obj->Set(facility_key.handle(), NanNew<String>(facility_));
-        obj->Set(message_key.handle(), NanNew<String>(message_));
+        Local<Object> obj = Nan::New<Object>();
+        Nan::Set(obj, level_key.handle(), Nan::New<Number>(level_));
+        Nan::Set(obj, facility_key.handle(), Nan::New<String>(facility_).ToLocalChecked());
+        Nan::Set(obj, message_key.handle(), Nan::New<String>(message_).ToLocalChecked());
 
-        return NanEscapeScope(obj);
+        return scope.Escape(obj);
     }
 
     LogEvent(Common *common, int level, const char *facility, const char *message):
@@ -127,7 +127,7 @@ public:
     }
 
     virtual void v8_cb() {
-        NanScope();
+        Nan::HandleScope scope;
         if (common_->error_event_callback_) {
             Local<Value> argv[] = { toJsObject() };
             common_->error_event_callback_->Call(1, argv);
@@ -136,17 +136,17 @@ public:
 
 protected:
     Local<Object> toJsObject() {
-        NanEscapableScope();
+        Nan::EscapableHandleScope scope;
 
         static PersistentString error_key("error");
         static PersistentString reason_key("reason");
 
-        Local<Object> jsobj = NanNew<Object>();
+        Local<Object> jsobj = Nan::New<Object>();
 
-        jsobj->Set(error_key.handle(), NanNew<Number>(error_));
-        jsobj->Set(reason_key.handle(), NanNew<String>(reason_));
+        Nan::Set(jsobj, error_key.handle(), Nan::New<Number>(error_));
+        Nan::Set(jsobj, reason_key.handle(), Nan::New<String>(reason_).ToLocalChecked());
 
-        return NanEscapeScope(jsobj);
+        return scope.Escape(jsobj);
     }
 
     ErrorEvent(Common* common, int error, const char *reason):
@@ -174,9 +174,9 @@ public:
     }
 
     virtual void v8_cb() {
-        NanScope();
+        Nan::HandleScope scope;
         if (common_->stat_event_callback_) {
-            Local<Value> argv[] = { NanNew<String>(stats_) };
+            Local<Value> argv[] = { Nan::New<String>(stats_).ToLocalChecked() };
             common_->stat_event_callback_->Call(1, argv);
         }
     }
@@ -274,7 +274,7 @@ Common::poll_stopped() {
 
 rd_kafka_topic_t*
 Common::setup_topic(const char *name, std::string *error) {
-    NanScope();
+    Nan::HandleScope scope;
 
     rd_kafka_topic_t *topic = get_topic(name);
     if (topic) {
@@ -287,16 +287,16 @@ Common::setup_topic(const char *name, std::string *error) {
     char errstr[errsize];
 
     static PersistentString topic_options_key("topic_options");
-    Local<Object> topic_options = NanNew(options_)->Get(topic_options_key).As<Object>();
-    if (topic_options != NanUndefined()) {
-        Local<Array> keys = topic_options->GetOwnPropertyNames();
+    Local<Object> topic_options = Nan::Get(Nan::New(options_), topic_options_key).ToLocalChecked().As<Object>();
+    if (topic_options != Nan::Undefined()) {
+        Local<Array> keys = Nan::GetOwnPropertyNames(topic_options).ToLocalChecked();
         for (size_t i = 0; i < keys->Length(); i++) {
-            Local<Value> key = keys->Get(i);
-            Local<Value> val = topic_options->Get(key);
-            if (val == NanUndefined()) {
+            Local<Value> key = Nan::Get(keys, i).ToLocalChecked();
+            Local<Value> val = Nan::Get(topic_options, key).ToLocalChecked();
+            if (val == Nan::Undefined()) {
                 continue;
             }
-            if (rd_kafka_topic_conf_set(conf, *NanAsciiString(key), *NanAsciiString(val),
+            if (rd_kafka_topic_conf_set(conf, *Nan::Utf8String(key), *Nan::Utf8String(val),
                                         errstr, errsize) != RD_KAFKA_CONF_OK) {
                 *error = std::string(errstr);
                 rd_kafka_topic_conf_destroy(conf);
@@ -331,31 +331,31 @@ Common::get_topic(const char *name) {
 
 int
 Common::common_init(rd_kafka_conf_t *conf, std::string *error) {
-    NanScope();
+    Nan::HandleScope scope;
 
     // Convert persistent options to local for >node 0.12 compatibility
-    Local<Object> options = NanNew(options_);
+    Local<Object> options = Nan::New(options_);
 
     // callbacks
     static PersistentString stat_cb_key("stat_cb");
-    Local<Function> stat_cb_fn = options->Get(stat_cb_key).As<Function>();
-    if (stat_cb_fn != NanUndefined()) {
+    Local<Function> stat_cb_fn = Nan::Get(options, stat_cb_key).ToLocalChecked().As<Function>();
+    if (stat_cb_fn != Nan::Undefined()) {
         rd_kafka_conf_set_stats_cb(conf, StatEvent::kafka_cb);
-        stat_event_callback_.reset(new NanCallback(stat_cb_fn));
+        stat_event_callback_.reset(new Nan::Callback(stat_cb_fn));
     }
 
     static PersistentString error_cb_key("error_cb");
-    Local<Function> error_cb_fn = options->Get(error_cb_key).As<Function>();
-    if (error_cb_fn != NanUndefined()) {
+    Local<Function> error_cb_fn = Nan::Get(options, error_cb_key).ToLocalChecked().As<Function>();
+    if (error_cb_fn != Nan::Undefined()) {
         rd_kafka_conf_set_error_cb(conf, ErrorEvent::kafka_cb);
-        error_event_callback_.reset(new NanCallback(error_cb_fn));
+        error_event_callback_.reset(new Nan::Callback(error_cb_fn));
     }
 
     static PersistentString log_cb_key("log_cb");
-    Local<Function> log_cb_fn = options->Get(log_cb_key).As<Function>();
-    if (log_cb_fn != NanUndefined()) {
+    Local<Function> log_cb_fn = Nan::Get(options, log_cb_key).ToLocalChecked().As<Function>();
+    if (log_cb_fn != Nan::Undefined()) {
         rd_kafka_conf_set_log_cb(conf, LogEvent::kafka_cb);
-        log_event_callback_.reset(new NanCallback(log_cb_fn));
+        log_event_callback_.reset(new Nan::Callback(log_cb_fn));
     }
 
     const int errsize = 512;
@@ -367,16 +367,16 @@ Common::common_init(rd_kafka_conf_t *conf, std::string *error) {
     // rd_kafka_conf_set(conf, "debug", "topic", errstr, sizeof(errstr));
 
     static PersistentString driver_options_key("driver_options");
-    Local<Object> driver_options = options->Get(driver_options_key).As<Object>();
-    if (driver_options != NanUndefined()) {
-        Local<Array> keys = driver_options->GetOwnPropertyNames();
+    Local<Object> driver_options = Nan::Get(options, driver_options_key).ToLocalChecked().As<Object>();
+    if (driver_options != Nan::Undefined()) {
+        Local<Array> keys = Nan::GetOwnPropertyNames(driver_options).ToLocalChecked();
         for (size_t i = 0; i < keys->Length(); i++) {
-            Local<Value> key = keys->Get(i);
-            Local<Value> val = driver_options->Get(key);
-            if (val == NanUndefined()) {
+            Local<Value> key = Nan::Get(keys, i).ToLocalChecked();
+            Local<Value> val = Nan::Get(driver_options, key).ToLocalChecked();
+            if (val == Nan::Undefined()) {
                 continue;
             }
-            if (rd_kafka_conf_set(conf, *NanAsciiString(key), *NanAsciiString(val),
+            if (rd_kafka_conf_set(conf, *Nan::Utf8String(key), *Nan::Utf8String(val),
                                     errstr, errsize) != RD_KAFKA_CONF_OK) {
                 *error = std::string(errstr);
                 rd_kafka_conf_destroy(conf);
@@ -399,32 +399,32 @@ Common::common_init(rd_kafka_conf_t *conf, std::string *error) {
 
 Local<Object>
 metadata_to_jsobj(struct rd_kafka_metadata *metadata) {
-    NanEscapableScope();
+    Nan::EscapableHandleScope scope;
 
     static PersistentString error_key("error");
 
-    Local<Object> obj = NanNew<Object>();
+    Local<Object> obj = Nan::New<Object>();
 
     static PersistentString orig_broker_id_key("orig_broker_id");
     static PersistentString orig_broker_name_key("orig_broker_name");
-    obj->Set(orig_broker_id_key.handle(), NanNew<Number>(metadata->orig_broker_id));
-    obj->Set(orig_broker_name_key.handle(), NanNew<String>(metadata->orig_broker_name));
+    Nan::Set(obj, orig_broker_id_key.handle(), Nan::New<Number>(metadata->orig_broker_id));
+    Nan::Set(obj, orig_broker_name_key.handle(), Nan::New<String>(metadata->orig_broker_name).ToLocalChecked());
 
     static PersistentString brokers_key("brokers");
     static PersistentString id_key("id");
     static PersistentString host_key("host");
     static PersistentString port_key("port");
 
-    Local<Object> brokers_obj = NanNew<Object>();
+    Local<Object> brokers_obj = Nan::New<Object>();
     for (int i = 0; i < metadata->broker_cnt; ++i) {
         struct rd_kafka_metadata_broker *broker = &metadata->brokers[i];
-        Local<Object> broker_obj = NanNew<Object>();
-        broker_obj->Set(id_key.handle(), NanNew<Number>(broker->id));
-        broker_obj->Set(host_key.handle(), NanNew<String>(broker->host));
-        broker_obj->Set(port_key.handle(), NanNew<Number>(broker->port));
-        brokers_obj->Set(i, broker_obj);
+        Local<Object> broker_obj = Nan::New<Object>();
+        Nan::Set(broker_obj, id_key.handle(), Nan::New<Number>(broker->id));
+        Nan::Set(broker_obj, host_key.handle(), Nan::New<String>(broker->host).ToLocalChecked());
+        Nan::Set(broker_obj, port_key.handle(), Nan::New<Number>(broker->port));
+        Nan::Set(brokers_obj, i, broker_obj);
     }
-    obj->Set(brokers_key.handle(), brokers_obj);
+    Nan::Set(obj, brokers_key.handle(), brokers_obj);
 
     static PersistentString topics_key("topics");
     static PersistentString partitions_key("partitions");
@@ -433,51 +433,51 @@ metadata_to_jsobj(struct rd_kafka_metadata *metadata) {
     static PersistentString replicas_key("replicas");
     static PersistentString isrs_key("isrs");
 
-    Local<Object> topics_obj = NanNew<Array>();
+    Local<Object> topics_obj = Nan::New<Array>();
     for (int i = 0; i < metadata->topic_cnt; ++i) {
         struct rd_kafka_metadata_topic *topic = &metadata->topics[i];
-        Local<Object> topic_obj = NanNew<Object>();
-        topic_obj->Set(topic_key.handle(), NanNew<String>(topic->topic));
-        topic_obj->Set(error_key.handle(), NanNew<Number>(topic->err));
+        Local<Object> topic_obj = Nan::New<Object>();
+        Nan::Set(topic_obj, topic_key.handle(), Nan::New<String>(topic->topic).ToLocalChecked());
+        Nan::Set(topic_obj, error_key.handle(), Nan::New<Number>(topic->err));
 
-        Local<Object> partitions_obj = NanNew<Array>();
+        Local<Object> partitions_obj = Nan::New<Array>();
         for (int j = 0; j < topic->partition_cnt; ++j) {
             struct rd_kafka_metadata_partition *partition = &topic->partitions[j];
-            Local<Object> partition_obj = NanNew<Object>();
-            partition_obj->Set(id_key.handle(), NanNew<Number>(partition->id));
-            partition_obj->Set(error_key.handle(), NanNew<Number>(partition->err));
-            partition_obj->Set(leader_key.handle(), NanNew<Number>(partition->leader));
+            Local<Object> partition_obj = Nan::New<Object>();
+            Nan::Set(partition_obj, id_key.handle(), Nan::New<Number>(partition->id));
+            Nan::Set(partition_obj, error_key.handle(), Nan::New<Number>(partition->err));
+            Nan::Set(partition_obj, leader_key.handle(), Nan::New<Number>(partition->leader));
 
-            Local<Object> replicas_obj = NanNew<Array>();
+            Local<Object> replicas_obj = Nan::New<Array>();
             for (int k = 0; k < partition->replica_cnt; ++k) {
-                replicas_obj->Set(k, NanNew<Number>(partition->replicas[k]));
+                Nan::Set(replicas_obj, k, Nan::New<Number>(partition->replicas[k]));
             }
-            partition_obj->Set(replicas_key.handle(), replicas_obj);
+            Nan::Set(partition_obj, replicas_key.handle(), replicas_obj);
 
-            Local<Object> isrs_obj = NanNew<Array>();
+            Local<Object> isrs_obj = Nan::New<Array>();
             for (int k = 0; k < partition->isr_cnt; ++k) {
-                isrs_obj->Set(k, NanNew<Number>(partition->isrs[k]));
+                Nan::Set(isrs_obj, k, Nan::New<Number>(partition->isrs[k]));
             }
-            partition_obj->Set(isrs_key.handle(), isrs_obj);
+            Nan::Set(partition_obj, isrs_key.handle(), isrs_obj);
 
-            partitions_obj->Set(j, partition_obj);
+            Nan::Set(partitions_obj, j, partition_obj);
         }
-        topic_obj->Set(partitions_key.handle(), partitions_obj);
+        Nan::Set(topic_obj, partitions_key.handle(), partitions_obj);
 
-        topics_obj->Set(i, topic_obj);
+        Nan::Set(topics_obj, i, topic_obj);
     }
-    obj->Set(topics_key.handle(), topics_obj);
+    Nan::Set(obj, topics_key.handle(), topics_obj);
 
-    return NanEscapeScope(obj);
+    return scope.Escape(obj);
 }
 
 
-class MetadataWorker : public NanAsyncWorker {
+class MetadataWorker : public Nan::AsyncWorker {
 public:
-    MetadataWorker( NanCallback *callback,
+    MetadataWorker( Nan::Callback *callback,
                     rd_kafka_t *client,
                     rd_kafka_topic_t *topic):
-            NanAsyncWorker(callback),
+            Nan::AsyncWorker(callback),
             client_(client),
             topic_(topic),
             metadata_(nullptr)
@@ -507,10 +507,10 @@ public:
     // this function will be run inside the main event loop
     // so it is safe to use V8 again
     void HandleOKCallback () {
-        NanScope();
+        Nan::HandleScope scope;
 
         Local<Value> argv[] = {
-            NanNull(),
+            Nan::Null(),
             metadata_to_jsobj(metadata_)
         };
 
@@ -525,26 +525,25 @@ private:
 
 NAN_METHOD(Common::get_metadata)
 {
-    NanScope();
 
-    if (args.Length() != 2 ||
-        !( args[0]->IsString() && args[1]->IsFunction()) ) {
-        NanThrowError("you must supply a topic name and callback");
-        NanReturnUndefined();
+    if (info.Length() != 2 ||
+        !( info[0]->IsString() && info[1]->IsFunction()) ) {
+        Nan::ThrowError("you must supply a topic name and callback");
+        return;
     }
 
-    String::Utf8Value topic_name(args[0]);
+    String::Utf8Value topic_name(info[0]);
     rd_kafka_topic_t *topic = get_topic(*topic_name);
     if (!topic) {
         std::string error;
         topic = setup_topic(*topic_name, &error);
         if (!topic) {
-            NanThrowError(error.c_str());
-            NanReturnUndefined();
+            Nan::ThrowError(error.c_str());
+            return;
         }
     }
 
-    NanCallback *callback = new NanCallback(args[1].As<Function>());
-    NanAsyncQueueWorker(new MetadataWorker(callback, kafka_client_, topic));
-    NanReturnUndefined();
+    Nan::Callback *callback = new Nan::Callback(info[1].As<Function>());
+    Nan::AsyncQueueWorker(new MetadataWorker(callback, kafka_client_, topic));
+    return;
 }

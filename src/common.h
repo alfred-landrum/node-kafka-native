@@ -21,7 +21,7 @@ protected:
     KafkaEvent() {}
 };
 
-class Common : public node::ObjectWrap {
+class Common : public Nan::ObjectWrap {
 public:
     Common(rd_kafka_type_t ktype, v8::Local<v8::Object> &options);
     ~Common();
@@ -35,7 +35,7 @@ public:
 
     NAN_METHOD(get_metadata);
 
-    v8::Persistent<v8::Object> options_;
+    Nan::Persistent<v8::Object> options_;
 
     std::vector<std::unique_ptr<KafkaEvent> > ke_queue_;
     void ke_push(std::unique_ptr<KafkaEvent> event);
@@ -53,9 +53,9 @@ public:
     std::map<std::string, rd_kafka_topic_t*> topics_;
 
     // callbacks
-    std::unique_ptr<NanCallback> stat_event_callback_;
-    std::unique_ptr<NanCallback> error_event_callback_;
-    std::unique_ptr<NanCallback> log_event_callback_;
+    std::unique_ptr<Nan::Callback> stat_event_callback_;
+    std::unique_ptr<Nan::Callback> error_event_callback_;
+    std::unique_ptr<Nan::Callback> log_event_callback_;
 
     // rd_kafka_poll
     uv_thread_t poll_thread_;

@@ -20,61 +20,59 @@ Producer::~Producer()
 {
 }
 
-Persistent<Function> Producer::constructor;
+Nan::Persistent<Function> Producer::constructor;
 
 void
 Producer::Init() {
-    NanScope();
+    Nan::HandleScope scope;
 
     // Prepare constructor template
-    Local<FunctionTemplate> tpl = NanNew<FunctionTemplate>(New);
-    tpl->SetClassName(NanNew("Producer"));
+    Local<FunctionTemplate> tpl = Nan::New<FunctionTemplate>(New);
+    tpl->SetClassName(Nan::New("Producer").ToLocalChecked());
     tpl->InstanceTemplate()->SetInternalFieldCount(1);
 
-    NODE_SET_PROTOTYPE_METHOD(tpl, "send", WRAPPED_METHOD_NAME(Send));
-    NODE_SET_PROTOTYPE_METHOD(tpl, "get_metadata", WRAPPED_METHOD_NAME(GetMetadata));
-    NODE_SET_PROTOTYPE_METHOD(tpl, "outq_length", WRAPPED_METHOD_NAME(OutQueueLength));
-    NODE_SET_PROTOTYPE_METHOD(tpl, "stop", WRAPPED_METHOD_NAME(Stop));
+    Nan::SetPrototypeMethod(tpl, "send", WRAPPED_METHOD_NAME(Send));
+    Nan::SetPrototypeMethod(tpl, "get_metadata", WRAPPED_METHOD_NAME(GetMetadata));
+    Nan::SetPrototypeMethod(tpl, "outq_length", WRAPPED_METHOD_NAME(OutQueueLength));
+    Nan::SetPrototypeMethod(tpl, "stop", WRAPPED_METHOD_NAME(Stop));
 
-
-    NanAssignPersistent(constructor, tpl->GetFunction());
+    constructor.Reset(tpl->GetFunction());
 }
 
 Local<Object>
 Producer::NewInstance(Local<Value> arg) {
-    NanEscapableScope();
+    Nan::EscapableHandleScope scope;
 
     const unsigned argc = 1;
     Local<Value> argv[argc] = { arg };
-    Local<Function> cons = NanNew<Function>(constructor);
-    Local<Object> instance = cons->NewInstance(argc, argv);
+    Local<Function> cons = Nan::New<Function>(constructor);
+    Local<Object> instance = Nan::NewInstance(cons, argc, argv).ToLocalChecked();
 
-    return NanEscapeScope(instance);
+    return scope.Escape(instance);
 }
 
 NAN_METHOD(Producer::New) {
-    NanScope();
 
-    if (!args.IsConstructCall()) {
-        return NanThrowError("non-constructor invocation not supported");
+    if (!info.IsConstructCall()) {
+        return Nan::ThrowError("non-constructor invocation not supported");
     }
 
-    Local<Object> options(NanNew<Object>());
+    Local<Object> options(Nan::New<Object>());
 
-    if (args.Length() == 1 && args[0] != NanUndefined()) {
-        options = args[0].As<Object>();
+    if (info.Length() == 1 && info[0] != Nan::Undefined()) {
+        options = info[0].As<Object>();
     }
 
     Producer* obj = new Producer(options);
-    obj->Wrap(args.This());
+    obj->Wrap(info.This());
 
     std::string error;
     if (obj->producer_init(&error)) {
-        NanThrowError(error.c_str());
-        NanReturnUndefined();
+        Nan::ThrowError(error.c_str());
+        return;
     }
 
-    NanReturnValue(args.This());
+    info.GetReturnValue().Set(info.This());
 }
 
 class DeliveryReportEvent : public KafkaEvent {
@@ -126,7 +124,7 @@ Producer::dr_cb(rd_kafka_resp_err_t err) {
 
 void
 Producer::dr_cb_v8() {
-    NanScope();
+    Nan::HandleScope scope;
 
     decltype(dr_results_) results;
 
@@ -148,14 +146,14 @@ Producer::dr_cb_v8() {
     static PersistentString errstr_key("errstr");
 
     int pos = 0;
-    Local<Array> result_arr(NanNew<Array>());
+    Local<Array> result_arr(Nan::New<Array>());
 
     for (auto& iter : results) {
-        Local<Object> obj(NanNew<Object>());
-        obj->Set(errcode_key.handle(), NanNew<Number>(iter.first));
-        obj->Set(count_key.handle(), NanNew<Number>(iter.second));
-        obj->Set(errstr_key.handle(), NanNew<String>(rd_kafka_err2str(iter.first)));
-        result_arr->Set(pos++, obj);
+        Local<Object> obj(Nan::New<Object>());
+        Nan::Set(obj, errcode_key.handle(), Nan::New<Number>(iter.first));
+        Nan::Set(obj, count_key.handle(), Nan::New<Number>(iter.second));
+        Nan::Set(obj, errstr_key.handle(), Nan::New<String>(rd_kafka_err2str(iter.first)).ToLocalChecked());
+        Nan::Set(result_arr, pos++, obj);
     }
 
     Local<Value> argv[] = { result_arr };
@@ -164,17 +162,17 @@ Producer::dr_cb_v8() {
 
 int
 Producer::producer_init(std::string *error_str) {
-    NanScope();
+    Nan::HandleScope scope;
 
     rd_kafka_conf_t *conf = rd_kafka_conf_new();
     rd_kafka_conf_set_opaque(conf, this);
 
-    Local<Object> options = NanNew(options_);
+    Local<Object> options = Nan::New(options_);
 
     static PersistentString dr_cb_key("dr_cb");
-    Local<Function> dr_cb_fn = options->Get(dr_cb_key).As<Function>();
-    if (dr_cb_fn != NanUndefined()) {
-        dr_callback_.reset(new NanCallback(dr_cb_fn));
+    Local<Function> dr_cb_fn = Nan::Get(options, dr_cb_key).ToLocalChecked().As<Function>();
+    if (dr_cb_fn != Nan::Undefined()) {
+        dr_callback_.reset(new Nan::Callback(dr_cb_fn));
         rd_kafka_conf_set_dr_cb(conf, DeliveryReportEvent::kafka_cb);
     }
 
@@ -189,32 +187,32 @@ Producer::producer_init(std::string *error_str) {
 }
 
 WRAPPED_METHOD(Producer, Send) {
-    NanScope();
+    Nan::HandleScope scope;
 
     if (stop_called_) {
-        NanThrowError("already shutdown");
-        NanReturnUndefined();
+        Nan::ThrowError("already shutdown");
+        return;
     }
 
-    if (args.Length() != 3 ||
-        !( args[0]->IsString() && args[1]->IsNumber() && args[2]->IsArray()) ) {
-        NanThrowError("you must supply a topic name, partition, and array of strings");
-        NanReturnUndefined();
+    if (info.Length() != 3 ||
+        !( info[0]->IsString() && info[1]->IsNumber() && info[2]->IsArray()) ) {
+        Nan::ThrowError("you must supply a topic name, partition, and array of strings");
+        return;
     }
 
-    String::Utf8Value topic_name(args[0]);
+    String::Utf8Value topic_name(info[0]);
     rd_kafka_topic_t *topic = get_topic(*topic_name);
     if (!topic) {
         std::string error;
         topic = setup_topic(*topic_name, &error);
         if (!topic) {
-            NanThrowError(error.c_str());
-            NanReturnUndefined();
+            Nan::ThrowError(error.c_str());
+            return;
         }
     }
 
-    int32_t partition = args[1].As<Number>()->Int32Value();
-    Local<Array> msg_array(args[2].As<Array>());
+    int32_t partition = info[1].As<Number>()->Int32Value();
+    Local<Array> msg_array(info[2].As<Array>());
     uint32_t message_cnt = msg_array->Length();
 
     std::unique_ptr<rd_kafka_message_t[]> holder(new rd_kafka_message_t[message_cnt]());
@@ -222,7 +220,7 @@ WRAPPED_METHOD(Producer, Send) {
 
     for (uint32_t i = 0; i < message_cnt; ++i) {
         rd_kafka_message_t *msg = &messages[i];
-        const Local<String>& str(msg_array->Get(i).As<String>());
+        const Local<String>& str(Nan::Get(msg_array, i).ToLocalChecked().As<String>());
 
         int length = str->Utf8Length();
         msg->len = length;
@@ -250,47 +248,47 @@ WRAPPED_METHOD(Producer, Send) {
         }
     }
 
-    Local<Object> ret(NanNew<Object>());
+    Local<Object> ret(Nan::New<Object>());
     static PersistentString queue_length_key("queue_length");
     static PersistentString queued_key("queued");
 
-    ret->Set(queue_length_key.handle(), NanNew<Number>(rd_kafka_outq_len(kafka_client_)));
-    ret->Set(queued_key.handle(), NanNew<Number>(sent));
+    Nan::Set(ret, queue_length_key.handle(), Nan::New<Number>(rd_kafka_outq_len(kafka_client_)));
+    Nan::Set(ret, queued_key.handle(), Nan::New<Number>(sent));
 
-    NanReturnValue(ret);
+    info.GetReturnValue().Set(ret);
 }
 
 WRAPPED_METHOD(Producer, GetMetadata) {
-    NanScope();
+    Nan::HandleScope scope;
 
     if (stop_called_) {
-        NanThrowError("already shutdown");
-        NanReturnUndefined();
+        Nan::ThrowError("already shutdown");
+        return;
     }
 
-    get_metadata(args);
+    get_metadata(info);
 
-    NanReturnUndefined();
+    return;
 }
 
 WRAPPED_METHOD(Producer, OutQueueLength) {
-    NanScope();
+    Nan::HandleScope scope;
 
     if (stop_called_) {
-        NanThrowError("already shutdown");
-        NanReturnUndefined();
+        Nan::ThrowError("already shutdown");
+        return;
     }
 
     int qlen = rd_kafka_outq_len(kafka_client_);
 
-    NanReturnValue(NanNew<Number>(qlen));
+    info.GetReturnValue().Set(Nan::New<Number>(qlen));
 }
 
 WRAPPED_METHOD(Producer, Stop) {
-    NanScope();
+    Nan::HandleScope scope;
 
     stop_called_ = true;
     stop_poll();
 
-    NanReturnUndefined();
+    return;
 }
