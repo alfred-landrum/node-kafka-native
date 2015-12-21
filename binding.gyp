@@ -20,9 +20,7 @@
           'OS=="mac"',
           {
             'xcode_settings': {
-              'OTHER_CPLUSPLUSFLAGS' : ['-std=c++11','-stdlib=libc++'],
-              'OTHER_LDFLAGS': ['-stdlib=libc++'],
-              'MACOSX_DEPLOYMENT_TARGET': '10.7'
+              'MACOSX_DEPLOYMENT_TARGET': '10.11'
             },
             'libraries' : ['-lz']
           }
@@ -81,8 +79,8 @@
           'OS=="mac"',
           {
             'xcode_settings': {
-              'MACOSX_DEPLOYMENT_TARGET': '10.10',
-              'OTHER_CFLAGS' : [ '-Wno-sign-compare', '-Wno-missing-field-initializers' ],
+              'MACOSX_DEPLOYMENT_TARGET': '10.11',
+              'OTHER_CFLAGS' : ['-Wno-sign-compare', '-Wno-missing-field-initializers'],
             },
             'libraries' : ['-lz']
           }
