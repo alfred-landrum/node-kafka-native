@@ -8,7 +8,7 @@
     },
     "main": "index.js",
     "scripts": {
-        "test": "./node_modules/mocha/bin/mocha ./specs",
+        "test": "./node_modules/.bin/istanbul test ./node_modules/mocha/bin/_mocha -- -R spec ./specs",
         "install": "node-gyp rebuild"
     },
     "author": {
@@ -26,6 +26,7 @@
     },
     "devDependencies": {
         "chai": "^3.5.0",
+        "istanbul": "^0.4.2",
         "mocha": "^2.4.5",
         "uuid": "^2.0.1"
     },
