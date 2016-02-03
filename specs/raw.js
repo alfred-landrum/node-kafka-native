@@ -1,4 +1,4 @@
-var _ = require('underscore');
+var _ = require('lodash');
 var expect = require('chai').expect;
 var Promise = require('bluebird');
 var bluebird_retry = require('bluebird-retry');
@@ -29,7 +29,7 @@ function get_partition_count(handle, topic_name) {
             });
         })
         .then(function(metadata) {
-            var topic = _.findWhere(metadata.topics, {topic: topic_name});
+            var topic = _.find(metadata.topics, {topic: topic_name});
             expect(topic).to.exist();
             expect(topic.partitions).to.exist();
             expect(topic.partitions.length).gt(0);
