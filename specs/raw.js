@@ -182,7 +182,7 @@ describe('raw handle api tests', function() {
             consumer.resume();
 
             // the above messages should already be sitting
-            // in rdkafka's consume queue, so just dont retry
+            // in rdkafka's consume queue, so dont retry
             // for long.
             return bluebird_retry(function(cancel) {
                 expect(_.keys(received_messages).length).equals(num_partitions);
