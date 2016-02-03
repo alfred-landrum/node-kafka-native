@@ -44,7 +44,6 @@ function ConsumerTest(options) {
         fetch_partition_count: function() { return Promise.resolve(npartions); },
         offset_manager: OffsetManager,
         raw_consumer: RawConsumer,
-        kmsg_mapper: options.kmsg_mapper || function(msg) { return msg.payload; },
     };
     this.options = options;
     this.consumer = new Consumer(options);
@@ -79,8 +78,14 @@ function gen_commit(kmsgs) {
     }, {});
 }
 
-function gen_payloads(kmsgs) {
-    return kmsgs.map(function(x) { return x.payload; });
+function filter_kmsgs(kmsgs) {
+    return kmsgs.map(function(m) {
+        return {
+            partition: m.partition,
+            payload: m.payload,
+            offset: m.offset,
+        };
+    });
 }
 
 
@@ -98,7 +103,7 @@ describe('consumer', function() {
                     expect(received).to.not.be.undefined;
                     expect(received.misses).to.equal(0);
                     expect(received.repeats).to.equal(0);
-                    expect(received.messages).to.deep.equal(gen_payloads(kmsgs));
+                    expect(filter_kmsgs(received.messages)).to.deep.equal(kmsgs);
                     expect(poffsets).to.deep.equal(gen_commit(kmsgs));
                 }).then(done, done);
             },
@@ -129,7 +134,7 @@ describe('consumer', function() {
                     expect(received).to.not.be.undefined;
                     expect(received.misses).to.equal(1);
                     expect(received.repeats).to.equal(0);
-                    expect(received.messages).to.deep.equal(gen_payloads(kmsgs));
+                    expect(filter_kmsgs(received.messages)).to.deep.equal(kmsgs);
                     expect(poffsets).to.deep.equal(gen_commit(kmsgs));
                 }).then(done, done);
             },
@@ -161,7 +166,7 @@ describe('consumer', function() {
                     expect(received).to.not.be.undefined;
                     expect(received.misses).to.equal(0);
                     expect(received.repeats).to.equal(1);
-                    expect(received.messages).to.deep.equal(gen_payloads(kmsgs));
+                    expect(filter_kmsgs(received.messages)).to.deep.equal(kmsgs);
                     expect(poffsets).to.deep.equal(expected_commit);
                 }).then(done, done);
             },
