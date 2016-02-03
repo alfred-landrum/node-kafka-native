@@ -22,6 +22,7 @@
         "fs-extra": "^0.9.1",
         "lodash": "^4.1.0",
         "nan": "^2.1.0",
+        "tmp": "^0.0.28",
         "validate-options": "^0.3.0"
     },
     "devDependencies": {
