@@ -1,9 +1,9 @@
 var _ = require('lodash');
-var expect = require('chai').expect;
-var Promise = require('bluebird');
 var bluebird_retry = require('bluebird-retry');
-var jut_node_kafka = require('../index');
+var common = require('../lib/common');
+var expect = require('chai').expect;
 var uuid = require('uuid');
+var Promise = require('bluebird');
 
 // Tests below assume a kafka broker is running at this address.
 var broker = 'localhost:9092';
@@ -20,44 +20,15 @@ var retry = function(func, retry_options) {
     return bluebird_retry(func, retry_options);
 }
 
-function get_partition_count(handle, topic_name) {
-    return retry(function() {
-        return new Promise(function(resolve, reject) {
-            handle.get_metadata(topic_name, function(err, metadata) {
-                if (err) { reject(err); }
-                resolve(metadata);
-            });
-        })
-        .then(function(metadata) {
-            var topic = _.find(metadata.topics, {topic: topic_name});
-            expect(topic).to.exist();
-            expect(topic.partitions).to.exist();
-            expect(topic.partitions.length).gt(0);
-            return topic.partitions.length;
-        });
-    });
-}
-
-function create_handle(clazz, topic_name) {
-    var handle = new clazz({
-        driver_options: {
-            'metadata.broker.list': broker,
-        },
-    });
-
-    return get_partition_count(handle, topic_name)
-    .return(handle);
-}
-
 function create_pair(topic_name, consumer_recv_cb) {
     return Promise.try(function() {
-        var producer = new jut_node_kafka.RawProducer({
+        var producer = new common.RawProducer({
             driver_options: {
                 'metadata.broker.list': broker,
             },
         });
 
-        var consumer = new jut_node_kafka.RawConsumer({
+        var consumer = new common.RawConsumer({
             topic: topic_name,
             recv_cb: consumer_recv_cb,
             driver_options: {
@@ -66,7 +37,7 @@ function create_pair(topic_name, consumer_recv_cb) {
         });
 
         return Promise.map([producer, consumer], function(handle) {
-            return get_partition_count(handle, topic_name);
+            return common.fetch_partition_count(handle, topic_name);
         })
         .then(function(arr) {
             expect(arr[0]).equals(arr[1]);
@@ -80,19 +51,20 @@ function create_pair(topic_name, consumer_recv_cb) {
 }
 
 
-describe('api tests', function() {
+describe('raw handle api tests', function() {
     this.timeout(default_timeout);
 
     it('should create new producer', function() {
         var topic_name = gen_topic_name();
-        var producer = new jut_node_kafka.RawProducer({
+        var producer = new common.RawProducer({
             driver_options: {
                 'metadata.broker.list': broker,
             },
         });
-        // Use get_partition_count to verify that rdkafka
+
+        // Use common.fetch_partition_count to verify that rdkafka
         // structures have been setup.
-        return get_partition_count(producer, topic_name)
+        return common.fetch_partition_count(producer, topic_name)
         .then(function() {
             producer.stop();
         });
@@ -100,14 +72,14 @@ describe('api tests', function() {
 
     it('should create new consumer', function() {
         var topic_name = gen_topic_name();
-        var consumer = new jut_node_kafka.RawConsumer({
+        var consumer = new common.RawConsumer({
             topic: topic_name,
             recv_cb: function() {},
             driver_options: {
                 'metadata.broker.list': broker,
             },
         });
-        return get_partition_count(consumer, topic_name)
+        return common.fetch_partition_count(consumer, topic_name)
         .then(function() {
             consumer.stop();
         });
@@ -148,14 +120,14 @@ describe('api tests', function() {
                 expect(_.keys(received_messages).length).equals(num_partitions);
                 _.each(_.range(num_partitions), function(partition) {
                     var msgs = received_messages[partition];
-                    expect(msgs).to.exist();
+                    expect(msgs).to.exist;
                     expect(msgs.length).equals(1);
                     var msg = msgs[0];
                     expect(msg.payload).equals(String(partition));
                     expect(msg.partition).equals(Number(partition));
                     expect(msg.offset).equals(0);
                     expect(msg.topic).equals(topic_name);
-                    expect(msg.key).not.exist();
+                    expect(msg.key).to.not.exist;
                 });
             });
         })
@@ -195,6 +167,7 @@ describe('api tests', function() {
             _.each(_.range(num_partitions), function(p) { partitions[p] = 0; });
 
             consumer.start(partitions)
+            paused = true;
             consumer.pause();
 
             return Promise.each(_.range(num_partitions), function(partition) {
@@ -205,6 +178,7 @@ describe('api tests', function() {
         })
         .then(function() {
             expect(recv_while_paused).equals(false);
+            paused = false;
             consumer.resume();
 
             // the above messages should already be sitting
@@ -214,14 +188,14 @@ describe('api tests', function() {
                 expect(_.keys(received_messages).length).equals(num_partitions);
                 _.each(_.range(num_partitions), function(partition) {
                     var msgs = received_messages[partition];
-                    expect(msgs).to.exist();
+                    expect(msgs).to.exist;
                     expect(msgs.length).equals(1);
                     var msg = msgs[0];
                     expect(msg.payload).equals(String(partition));
                     expect(msg.partition).equals(Number(partition));
                     expect(msg.offset).equals(0);
                     expect(msg.topic).equals(topic_name);
-                    expect(msg.key).not.exist();
+                    expect(msg.key).to.not.exist;
                 });
             }, {max_tries: 2, interval: 1000});
         })
@@ -266,14 +240,14 @@ describe('api tests', function() {
                 expect(_.keys(received_messages).length).equals(num_partitions);
                 _.each(_.range(num_partitions), function(partition) {
                     var msgs = received_messages[partition];
-                    expect(msgs).to.exist();
+                    expect(msgs).to.exist;
                     expect(msgs.length).equals(1);
                     var msg = msgs[0];
                     expect(msg.payload).equals(teststr);
                     expect(msg.partition).equals(Number(partition));
                     expect(msg.offset).equals(0);
                     expect(msg.topic).equals(topic_name);
-                    expect(msg.key).not.exist();
+                    expect(msg.key).to.not.exist;
                 });
             });
         })
@@ -282,6 +256,5 @@ describe('api tests', function() {
             consumer.stop();
         });
     });
-
 
 });

@@ -1,34 +1,33 @@
 {
-  "name": "jut-node-kafka",
-  "version": "0.0.27",
-  "description": "node.js Kafka client",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/jut-io/jut-node-kafka"
-  },
-  "main": "index.js",
-  "scripts": {
-    "test": "./node_modules/mocha/bin/mocha ./specs",
-    "install": "node-gyp rebuild"
-  },
-  "author": {
-    "name": "Alfred Landrum",
-    "email": "alfred@jut.io"
-  },
-  "license": "MIT",
-  "dependencies": {
-    "fs-extra": "^0.9.1",
-    "lodash": "^4.1.0",
-    "nan": "^2.1.0",
-    "validate-options": "^0.3.0"
-  },
-  "devDependencies": {
-    "bluebird": "^2.9.14",
-    "bluebird-retry": "^0.4.0",
-    "chai": "^1.10.0",
-    "mocha": "^2.1.0",
-    "underscore": "^1.8.3",
-    "uuid": "1.4.1"
-  },
-  "gypfile": true
+    "name": "jut-node-kafka",
+    "version": "0.0.27",
+    "description": "node.js Kafka client",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/jut-io/jut-node-kafka"
+    },
+    "main": "index.js",
+    "scripts": {
+        "test": "./node_modules/mocha/bin/mocha ./specs",
+        "install": "node-gyp rebuild"
+    },
+    "author": {
+        "name": "Alfred Landrum",
+        "email": "alfred@leakybucket.org"
+    },
+    "license": "MIT",
+    "dependencies": {
+        "bluebird": "^2.9.14",
+        "bluebird-retry": "^0.4.0",
+        "fs-extra": "^0.9.1",
+        "lodash": "^4.1.0",
+        "nan": "^2.1.0",
+        "validate-options": "^0.3.0"
+    },
+    "devDependencies": {
+        "chai": "^3.5.0",
+        "mocha": "^2.4.5",
+        "uuid": "^2.0.1"
+    },
+    "gypfile": true
 }
