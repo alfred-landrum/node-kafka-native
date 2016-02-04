@@ -88,7 +88,7 @@ describe('producer', function() {
         var test = new ProducerTest({
             stats_callback: function(stats) {
                 Promise.try(function() {
-                    expect(stats.queued).to.deep.equal({testtopic: 0});
+                    expect(stats.send_queue_length).to.deep.equal({testtopic: 0});
                     expect(stats.rdkafka_stats).to.deep.equal(JSON.parse(statstr));
                 }).then(done, done);
             }
