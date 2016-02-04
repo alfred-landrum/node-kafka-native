@@ -184,10 +184,9 @@ describe('consumer', function() {
             stats_callback: function(stats) {
                 Promise.try(function() {
                     var expected = {
-                        waiting: 20,
-                        waiting_memory: 20,
-                        waiting_disk: 0,
-                        disk_messages: 55,
+                        waiting_local: 20,
+                        waiting_kafka: 0,
+                        kafka_log_size: 55,
                         rdkafka_stats: JSON.parse(statstr),
                     };
                     expect(expected).to.deep.equal(stats);
