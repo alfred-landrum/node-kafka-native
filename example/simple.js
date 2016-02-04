@@ -1,5 +1,5 @@
 var kafka_native = require('../index');
-var broker = 'localhost:9092';
+var broker = process.env.NODE_KAFKA_NATIVE_BROKER || 'localhost:9092';
 var topic = 'example';
 
 var producer = new jut_node_kafka.Producer({

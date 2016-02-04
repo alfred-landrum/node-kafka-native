@@ -5,8 +5,7 @@ var expect = require('chai').expect;
 var uuid = require('uuid');
 var Promise = require('bluebird');
 
-// Tests below assume a kafka broker is running at this address.
-var broker = 'localhost:9092';
+var broker = process.env.NODE_KAFKA_NATIVE_BROKER || 'localhost:9092';
 var default_timeout = 30000;
 var default_retry_options = { max_tries: 10, interval: 1000 };
 
@@ -65,7 +64,10 @@ describe('raw handle api tests', function() {
         // Use common.fetch_partition_count to verify that rdkafka
         // structures have been setup.
         return common.fetch_partition_count(producer, topic_name)
-        .then(function() {
+        .then(function(npartitions) {
+            // If the below fails, ensure your kafka broker is configured to
+            // with a 'num.partitions' count greater than 1.
+            expect(npartitions).gt(1);
             producer.stop();
         });
     });

@@ -5,8 +5,7 @@ var jut_node_kafka = require('../index');
 var Promise = require('bluebird');
 var Tmp = require('tmp');
 
-// Tests below assume a kafka broker is running at this address.
-var broker = 'localhost:9092';
+var broker = process.env.NODE_KAFKA_NATIVE_BROKER || 'localhost:9092';
 var default_timeout = 30000;
 
 // Tests below assume auto topic creation is enabled in the broker.
@@ -51,7 +50,9 @@ describe('user level api', function() {
         });
         return producer.partition_count(topic)
         .then(function(npartitions) {
-            expect(npartitions).gt(0);
+            // If the below fails, ensure your kafka broker is configured to
+            // with a 'num.partitions' count greater than 1.
+            expect(npartitions).gt(1);
             for (var i = 0; i < npartitions; ++i) {
                 producer.send(topic, i, ['p' + i]);
             }

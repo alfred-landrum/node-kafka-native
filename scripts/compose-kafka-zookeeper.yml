@@ -1,0 +1,16 @@
+# Based on https://github.com/wurstmeister/kafka-docker
+zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+        - "2181:2181"
+kafka:
+    environment:
+        KAFKA_ADVERTISED_HOST_NAME:
+        KAFKA_NUM_PARTITIONS:
+    image: wurstmeister/kafka
+    ports:
+        - "9092:9092"
+    links:
+        - zookeeper:zk
+    volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
