@@ -6,8 +6,11 @@ var Consumer = require('../lib/consumer').Consumer;
 
 function make_offset_manager(initial_offsets, commit_fn) {
     var clazz = function() { };
-    clazz.prototype.read = function() {
-        return Promise.resolve(initial_offsets);
+    clazz.prototype.read = function(partitions) {
+        var offsets = partitions.map(function(p) {
+            return initial_offsets[p];
+        });
+        return Promise.resolve(offsets);
     };
     clazz.prototype.commit = function(poffsets) {
         if (commit_fn) {
@@ -44,6 +47,8 @@ function ConsumerTest(options) {
         fetch_partition_count: function() { return Promise.resolve(npartions); },
         offset_manager: OffsetManager,
         raw_consumer: RawConsumer,
+        num_workers: options.num_workers,
+        worker_slot: options.worker_slot,
     };
     this.options = options;
     this.consumer = new Consumer(options);
@@ -111,6 +116,26 @@ describe('consumer', function() {
         });
         test.consumer.start().then(function() {
             test.inject_kmsgs(kmsgs);
+        });
+    });
+
+    it('should handle num_workers and worker_slot configuration', function() {
+        var num_workers = 4;
+        var num_partitions = num_workers * 2;
+        var consumers = [];
+        return Promise.map(_.range(num_workers), function(i) {
+            var test = new ConsumerTest({
+                npartions: num_partitions,
+                worker_slot: i,
+                num_workers: num_workers,
+            });
+            return test.consumer.start();
+        })
+        .then(function(worker_partitions) {
+            var flat = _.sortBy(_.flatten(worker_partitions));
+            var unique = _.sortBy(_.uniq(flat));
+            expect(unique.length).equals(num_partitions);
+            expect(flat.length).equals(unique.length);
         });
     });
 
