@@ -1,4 +1,4 @@
-var jut_node_kafka = require('../index');
+var kafka_native = require('../index');
 var broker = 'localhost:9092';
 var topic = 'example';
 

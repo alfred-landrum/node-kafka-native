@@ -1,9 +1,9 @@
 {
   "targets": [
     {
-      "target_name": "jut-node-kafka",
+      "target_name": "kafka-native",
       "sources": [
-        "src/jut-node-kafka.cc",
+        "src/kafka-native.cc",
         "src/common.cc",
         "src/producer.cc",
         "src/consumer.cc"

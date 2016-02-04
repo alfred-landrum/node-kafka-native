@@ -11,7 +11,7 @@ var default_timeout = 30000;
 
 // Tests below assume auto topic creation is enabled in the broker.
 var gen_topic_name = function() {
-    return 'jut-node-kafka-test-' + uuid.v4();
+    return 'node-kafka-native-test-' + uuid.v4();
 }
 
 describe('user level api', function() {

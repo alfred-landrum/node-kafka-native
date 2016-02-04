@@ -1,5 +1,5 @@
 {
-    "name": "jut-node-kafka",
+    "name": "kafka-native",
     "version": "0.0.27",
     "description": "node.js Kafka client",
     "repository": {
