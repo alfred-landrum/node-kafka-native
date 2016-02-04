@@ -15,11 +15,16 @@
         "name": "Alfred Landrum",
         "email": "alfred@leakybucket.org"
     },
+    "keywords": [
+        "kafka",
+        "librdkafka",
+        "rdkafka"
+    ],
     "license": "MIT",
     "dependencies": {
         "bluebird": "^2.9.14",
         "bluebird-retry": "^0.4.0",
-        "fs-extra": "^0.9.1",
+        "fs-extra": "^0.26.5",
         "lodash": "^4.1.0",
         "nan": "^2.1.0",
         "tmp": "^0.0.28",

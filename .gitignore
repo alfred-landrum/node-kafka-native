@@ -2,6 +2,7 @@ build
 coverage
 node_modules
 npm-debug.log
+kafka-offsets
 deps/librdkafka/Makefile.config
 deps/librdkafka/config.cache
 deps/librdkafka/config.h
