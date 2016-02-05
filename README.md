@@ -4,7 +4,7 @@ The kafka-native client provides consume and produce functionality for Kafka, us
 
 ## Example
 ```javascript
-var jut_node_kafka = require('kafka-native');
+var kafka_native = require('kafka-native');
 var broker = 'localhost:9092';
 var topic = 'example';
 
@@ -166,11 +166,31 @@ options:
 - broker (string, required) The broker list of your Kafka servers, eg: 'localhost:9092'.
 - topic (string, required) Name of topic to consume messages from.
 - receive_callback (function, required) See below.
-- max_messages_per_callback (number) - maximum number of messages passed to a single invocation of the receive_callback.
-- statistics_interval_ms (number) Milliseconds between reporting statistics to the stats_callback.
-- queued_max_messages_kbytes (number) Maximum number of kilobytes allowed in the librdkafka consumer queue.
+- stats_callback (function) See below.
+- max_messages_per_callback (number, default 10000) - maximum number of messages passed to a single invocation of the receive_callback.
+- statistics_interval_ms (number, default 5000) Milliseconds between reporting statistics to the stats_callback.
+- queued_max_messages_kbytes (number, default 1,000,000) Maximum number of kilobytes allowed in the librdkafka consumer queue.
 - driver_options (object) - overrides for [librdkafka global configuration](https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md)
 - topic_options (object) - overrides for [librdkafka topic configuration](https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md)
+
+`receive_callback(info)`
+
+info:
+- repeats (number) If non-zero, signals that a message was received with an offset below what was expected. May indicate that the kafka topic was re-created.
+- misses (number) If non-zero, signals that a message was received with a higher offset than expected. This indicates that some messages were missed; ie, the broker deleted them due to the topic's expiration policy before the consumer was able to read them. High possibility that the consumer isn't able to process data as fast as messages are created.
+- messages (array of message objects):
+    - partition (number) partition of this message.
+    - offset (number) offset for this message.
+    - payload (string) payload of this message.
+    - key (string) key of this message if it was created with one.
+
+`stats_callback(info)`
+
+info:
+- `waiting_kafka`: The number of messages that are sitting at the Kafka broker waiting to be pulled.
+- `waiting_local`: The number of messages that have been pulled from kafka, and are sitting in local memory, but have not yet been handed to the caller's `receive_callback`.
+- `kafka_log_size`: The number of messages sitting in Kafka's log storage for the Consumer's partitions. This number does include messages that have already been pulled and processed, so its mostly useful to ensure your broker message expiration parameters are working as you expect.
+- rdkafka_stats (object) All statistics as reported by librdkafka.
 
 `consumer.start()`
 - returns: [Promise](http://bluebirdjs.com/docs/getting-started.html) for an array of partitions this consumer instance will pull from. Unless you're using the worker_id/num_workers to divvy work among consumers, this will be an array of all the partitions in the topic.
@@ -185,14 +205,6 @@ Re-allows receive_callback invocations after using consumer.pause().
 
 `consumer.stop()`
 - returns: [Promise](http://bluebirdjs.com/docs/getting-started.html) that resolves after any pending offset commits have been written to disk.
-
-`stats_callback(info)`
-
-info:
-- `waiting_kafka`: The number of messages that are sitting at the Kafka broker waiting to be pulled.
-- `waiting_local`: The number of messages that have been pulled from kafka, and are sitting in local memory, but have not yet been handed to the caller's `receive_callback`.
-- `kafka_log_size`: The number of messages sitting in Kafka's log storage for the Consumer's partitions. This number does include messages that have already been pulled and processed, so its mostly useful to ensure your broker message expiration parameters are working as you expect.
-- rdkafka_stats (object) All statistics as reported by librdkafka.
 
 ## License
 The wrapper library and addon are licensed for distribution by the MIT License.
