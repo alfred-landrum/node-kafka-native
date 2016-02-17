@@ -25,4 +25,4 @@ void InitAll(Handle<Object> exports) {
         Nan::GetFunction(Nan::New<FunctionTemplate>(CreateConsumer)).ToLocalChecked());
 }
 
-NODE_MODULE(jut_node_kafka, InitAll)
+NODE_MODULE(kafka_native, InitAll)
