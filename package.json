@@ -1,40 +1,40 @@
 {
-    "name": "kafka-native",
-    "version": "0.0.27",
-    "description": "node.js Kafka client",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/jut-io/jut-node-kafka"
-    },
-    "main": "index.js",
-    "scripts": {
-        "test": "./node_modules/.bin/istanbul test ./node_modules/mocha/bin/_mocha -- -R spec ./specs",
-        "install": "node-gyp rebuild"
-    },
-    "author": {
-        "name": "Alfred Landrum",
-        "email": "alfred@leakybucket.org"
-    },
-    "keywords": [
-        "kafka",
-        "librdkafka",
-        "rdkafka"
-    ],
-    "license": "MIT",
-    "dependencies": {
-        "bluebird": "^2.9.14",
-        "bluebird-retry": "^0.4.0",
-        "fs-extra": "^0.26.5",
-        "lodash": "^4.1.0",
-        "nan": "^2.1.0",
-        "tmp": "^0.0.28",
-        "validate-options": "^0.3.0"
-    },
-    "devDependencies": {
-        "chai": "^3.5.0",
-        "istanbul": "^0.4.2",
-        "mocha": "^2.4.5",
-        "uuid": "^2.0.1"
-    },
-    "gypfile": true
+  "name": "kafka-native",
+  "version": "1.0.0",
+  "description": "node.js Kafka client",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jut-io/jut-node-kafka"
+  },
+  "main": "index.js",
+  "scripts": {
+    "test": "./node_modules/.bin/istanbul test ./node_modules/mocha/bin/_mocha -- -R spec ./specs",
+    "install": "node-gyp rebuild"
+  },
+  "author": {
+    "name": "Alfred Landrum",
+    "email": "alfred@leakybucket.org"
+  },
+  "keywords": [
+    "kafka",
+    "librdkafka",
+    "rdkafka"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "bluebird": "^2.9.14",
+    "bluebird-retry": "^0.4.0",
+    "fs-extra": "^0.26.5",
+    "lodash": "^4.1.0",
+    "nan": "^2.1.0",
+    "tmp": "^0.0.28",
+    "validate-options": "^0.3.0"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "istanbul": "^0.4.2",
+    "mocha": "^2.4.5",
+    "uuid": "^2.0.1"
+  },
+  "gypfile": true
 }
