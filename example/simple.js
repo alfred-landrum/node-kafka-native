@@ -2,10 +2,10 @@ var kafka_native = require('../index');
 var broker = process.env.NODE_KAFKA_NATIVE_BROKER || 'localhost:9092';
 var topic = 'example';
 
-var producer = new jut_node_kafka.Producer({
+var producer = new kafka_native.Producer({
     broker: broker
 });
-var consumer = new jut_node_kafka.Consumer({
+var consumer = new kafka_native.Consumer({
     broker: broker,
     topic: topic,
     offset_directory: './kafka-offsets',
