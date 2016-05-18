@@ -5,7 +5,7 @@ var Producer = require('../lib/producer').Producer;
 var testdata = require('./testdata');
 
 function make_raw_producer(send_fn, outq_fn) {
-    var clazz = function() { }
+    var clazz = function() { };
     clazz.prototype.send = function(topic, partition, payloads) {
         if (send_fn) {
             return send_fn(topic, partition, payloads);
@@ -45,7 +45,7 @@ describe('producer', function() {
         var test_topic = 'testtopic';
         var test_partition = 0;
         var test_payloads = ['hello','there'];
-        var test_result = {enqueued: 2, send_queue_length: 2};
+        var test_result = {queued: 2, queue_length: 2};
 
         var test = new ProducerTest({
             send: function(topic, partition, payloads) {
@@ -58,7 +58,8 @@ describe('producer', function() {
         });
         return Promise.try(function() {
             var result = test.producer.send(test_topic, test_partition, test_payloads);
-            expect(result).to.deep.equal(test_result);
+            expect(result.enqueued).to.equal(test_result.queued);
+            expect(result.send_queue_length).to.equal(test_result.queue_length);
         });
     });
 
