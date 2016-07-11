@@ -25,6 +25,12 @@
             'libraries' : ['-lz']
           }
         ],[
+          'OS=="linux" and gcc_version<=46',
+          {
+            'cflags': ['-std=c++0x','-g'],
+            'libraries' : ['-lz']
+          }
+        ],[
           'OS=="linux"',
           {
             'cflags': ['-std=c++11','-g'],
